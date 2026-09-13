@@ -1,0 +1,146 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { v2 as cloudinary } from 'cloudinary';
+import { IStorageStrategy, UploadResult } from './storage-strategy.interface';
+
+@Injectable()
+export class CloudinaryStorageStrategy implements IStorageStrategy {
+  private readonly logger = new Logger(CloudinaryStorageStrategy.name);
+  private cache: Map<string, { timestamp: number; data: any[] }> = new Map();
+  private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache to prevent hitting 500 ops/hr rate limit
+  private rateLimitUntil: number = 0;
+
+  constructor(private readonly configService: ConfigService) {
+    cloudinary.config({
+      cloud_name: this.configService.get<string>('CLOUDINARY_CLOUD_NAME'),
+      api_key: this.configService.get<string>('CLOUDINARY_API_KEY'),
+      api_secret: this.configService.get<string>('CLOUDINARY_API_SECRET'),
+    });
+  }
+
+  private invalidateCache() {
+    this.cache.clear();
+    this.rateLimitUntil = 0;
+  }
+
+  async uploadFile(file: Express.Multer.File, folder: string = 'indian-public-school'): Promise<UploadResult> {
+    return new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        { folder, resource_type: 'auto' },
+        (error, result) => {
+          if (error) {
+            this.logger.error('Cloudinary upload error', error);
+            return reject(error);
+          }
+          if (!result) {
+            return reject(new Error('Cloudinary upload returned null result'));
+          }
+          this.invalidateCache();
+          resolve({
+            url: result.secure_url,
+            key: result.public_id,
+            provider: 'cloudinary',
+          });
+        },
+      );
+      uploadStream.end(file.buffer);
+    });
+  }
+
+  async deleteFile(key: string): Promise<boolean> {
+    try {
+      this.invalidateCache();
+      // 1. Try image resource_type
+      let result = await cloudinary.uploader.destroy(key, { resource_type: 'image' });
+      if (result && result.result === 'ok') return true;
+
+      // 2. Try video resource_type
+      result = await cloudinary.uploader.destroy(key, { resource_type: 'video' });
+      if (result && result.result === 'ok') return true;
+
+      // 3. Try raw resource_type (PDF, zip, doc, etc.)
+      result = await cloudinary.uploader.destroy(key, { resource_type: 'raw' });
+      return result && result.result === 'ok';
+    } catch (err) {
+      this.logger.error(`Error deleting Cloudinary asset ${key}`, err);
+      return false;
+    }
+  }
+
+  async listResources(folder?: string): Promise<Array<{ id: string; url: string; title: string; category: string; resourceType: string; format: string }>> {
+    const cacheKey = folder || '__ALL__';
+    const cached = this.cache.get(cacheKey);
+    const now = Date.now();
+
+    // Serve cached data if within TTL
+    if (cached && (now - cached.timestamp < this.CACHE_TTL_MS)) {
+      return cached.data;
+    }
+
+    // If Cloudinary rate limit was recently triggered, return cached or empty without calling Cloudinary API
+    if (now < this.rateLimitUntil) {
+      return cached ? cached.data : [];
+    }
+
+    const fetchWithRetry = async (retries = 2, delayMs = 500): Promise<any> => {
+      for (let i = 0; i <= retries; i++) {
+        try {
+          const options: Record<string, any> = {
+            max_results: 100,
+            type: 'upload',
+          };
+          if (folder) {
+            options.prefix = folder;
+          }
+          return await cloudinary.api.resources(options);
+        } catch (err: any) {
+          const isRateLimit = err?.error?.http_code === 420 || err?.http_code === 420 || err?.message?.includes('Rate Limit Exceeded');
+          if (isRateLimit) {
+            // Do not retry on rate limit errors
+            throw err;
+          }
+
+          const isNetworkError = err?.code === 'ECONNRESET' || err?.message?.includes('ECONNRESET');
+          if (i < retries && isNetworkError) {
+            this.logger.warn(`Cloudinary Admin API connection reset (${err?.code || err?.message}), retrying in ${delayMs}ms... (Attempt ${i + 1}/${retries})`);
+            await new Promise((res) => setTimeout(res, delayMs));
+            continue;
+          }
+          throw err;
+        }
+      }
+    };
+
+    try {
+      const res = await fetchWithRetry();
+      const resources = res?.resources || [];
+      const formatted = resources.map((r: any) => ({
+        id: r.public_id || r.asset_id,
+        url: r.secure_url || r.url,
+        title: (r.public_id || '').split('/').pop() || 'Cloudinary Asset',
+        category: (r.folder || r.public_id || '').includes('/') ? (r.public_id || '').split('/').slice(0, -1).pop() || 'Assets' : 'General',
+        resourceType: r.resource_type || 'image',
+        format: r.format || '',
+      }));
+
+      this.cache.set(cacheKey, { timestamp: now, data: formatted });
+      return formatted;
+    } catch (err: any) {
+      const isRateLimit = err?.error?.http_code === 420 || err?.http_code === 420 || err?.message?.includes('Rate Limit Exceeded') || String(err).includes('Rate Limit Exceeded');
+      
+      if (isRateLimit) {
+        // Lockout for 10 minutes on Rate Limit 420
+        this.rateLimitUntil = now + 10 * 60 * 1000;
+        this.logger.warn(`Cloudinary Admin API 500 ops/hr rate limit reached. Serving cached assets for 10 minutes until rate limit resets.`);
+      } else {
+        const errorDetail = err?.error?.message || err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+        this.logger.warn(`Could not fetch direct Cloudinary resources via Admin API: ${errorDetail}`);
+      }
+
+      if (cached) {
+        return cached.data;
+      }
+      return [];
+    }
+  }
+}

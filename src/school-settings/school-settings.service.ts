@@ -1,0 +1,97 @@
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { SchoolSettingRepository } from './school-setting.repository';
+import { CreateSchoolSettingDto } from './dto/create-school-setting.dto';
+import { UpdateSchoolSettingDto } from './dto/update-school-setting.dto';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+
+@Injectable()
+export class SchoolSettingsService implements OnModuleInit {
+  constructor(private readonly schoolSettingRepository: SchoolSettingRepository) {}
+
+  async onModuleInit() {
+    await this.seedSiteDatasource();
+    try {
+      const active = await this.schoolSettingRepository.findActive();
+      if (active && (!active.status || active.status !== 'Active')) {
+        await this.schoolSettingRepository.update(active._id.toString(), { status: 'Active' });
+      }
+    } catch (err) {
+      console.warn('[SchoolSettingsService.onModuleInit] Warning:', err);
+    }
+  }
+
+  async seedSiteDatasource() {
+    try {
+      const existing = await this.schoolSettingRepository.findByKey('site_datasource');
+      if (!existing) {
+        const filePath = join(process.cwd(), 'public', 'cloud-datasource.json');
+        const jsonContent = JSON.parse(await readFile(filePath, 'utf8'));
+        await this.schoolSettingRepository.create({
+          key: 'site_datasource',
+          category: 'Content',
+          description: 'Full home page and website section layout configuration datasource',
+          value: jsonContent,
+          isPublic: true,
+          status: 'Active',
+        });
+      }
+    } catch (err) {
+      console.warn('[SchoolSettingsService.seedSiteDatasource] Skipped:', err);
+    }
+  }
+
+  async create(dto: CreateSchoolSettingDto) {
+    const status = dto.status || 'Active';
+    const isAct = status.toLowerCase() === 'active';
+    if (isAct) {
+      await this.schoolSettingRepository.deactivateOthersByKey(dto.key, dto.category);
+    }
+    const existing = await this.schoolSettingRepository.findByKey(dto.key);
+    if (existing) {
+      return this.schoolSettingRepository.update(existing._id.toString(), { ...dto, status });
+    }
+    return this.schoolSettingRepository.create({ ...dto, status });
+  }
+
+  async findAll(queryDto: PaginationQueryDto = {}, category?: string, status?: string) {
+    const additionalFilter: Record<string, any> = {};
+    if (category && category !== 'All') additionalFilter.category = category;
+    if (status && status !== 'All') {
+      const st = String(status).toLowerCase();
+      additionalFilter.status = st === 'active' ? 'Active' : st === 'inactive' ? 'Inactive' : status;
+    }
+
+    return this.schoolSettingRepository.findAll(
+      queryDto,
+      ['key', 'category', 'description'],
+      additionalFilter,
+    );
+  }
+
+  async findOne(id: string) {
+    return this.schoolSettingRepository.findById(id);
+  }
+
+  async findByKey(key: string) {
+    return this.schoolSettingRepository.findByKey(key);
+  }
+
+  async findActiveSetting() {
+    return this.schoolSettingRepository.findActive();
+  }
+
+  async update(id: string, dto: UpdateSchoolSettingDto) {
+    if (dto.status && dto.status.toLowerCase() === 'active') {
+      const current = await this.schoolSettingRepository.findById(id);
+      const cat = dto.category || current?.category;
+      await this.schoolSettingRepository.deactivateOthers(id, cat);
+    }
+    return this.schoolSettingRepository.update(id, dto);
+  }
+
+  async remove(id: string) {
+    return this.schoolSettingRepository.delete(id);
+  }
+}

@@ -1,0 +1,87 @@
+import { Injectable } from '@nestjs/common';
+import { InquiryRepository } from './inquiry.repository';
+import { CreateInquiryDto } from './dto/create-inquiry.dto';
+import { UpdateInquiryDto } from './dto/update-inquiry.dto';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+import { InquiryStatus } from './schemas/inquiry.schema';
+
+@Injectable()
+export class InquiriesService {
+  constructor(private readonly inquiryRepository: InquiryRepository) {}
+
+  async create(createInquiryDto: CreateInquiryDto) {
+    return this.inquiryRepository.create(createInquiryDto);
+  }
+
+  async findAll(
+    queryDto: PaginationQueryDto = {},
+    inquiryType?: string,
+    status?: string,
+  ) {
+    const additionalFilter: Record<string, any> = {};
+    if (inquiryType) {
+      additionalFilter.inquiryType = { $regex: new RegExp(inquiryType, 'i') };
+    }
+    if (status) {
+      additionalFilter.status = status;
+    }
+
+    return this.inquiryRepository.findAll(
+      queryDto,
+      ['name', 'contact', 'email', 'inquiryType', 'message'],
+      additionalFilter,
+    );
+  }
+
+  async findOne(id: string) {
+    return this.inquiryRepository.findById(id);
+  }
+
+  async update(id: string, updateInquiryDto: UpdateInquiryDto) {
+    return this.inquiryRepository.update(id, updateInquiryDto);
+  }
+
+  async remove(id: string) {
+    return this.inquiryRepository.delete(id);
+  }
+
+  async seedDefaultInquiries() {
+    const count = await this.inquiryRepository.count();
+    if (count > 0) {
+      return { message: 'Inquiries collection already seeded', seeded: false };
+    }
+
+    const defaultInquiries: CreateInquiryDto[] = [
+      {
+        name: 'Amit Kumar',
+        contact: '+91 9876543210',
+        email: 'amit.kumar@example.com',
+        inquiryType: 'Admission',
+        message: 'Looking for admission in Class 6 for academic year 2026-2027. Please share admission schedule.',
+        status: InquiryStatus.PENDING,
+      },
+      {
+        name: 'Sunita Roy',
+        contact: '+91 9123456789',
+        email: 'sunita.roy@example.com',
+        inquiryType: 'Fee Structure',
+        message: 'Could you please provide the fee structure details for Senior Secondary classes?',
+        status: InquiryStatus.IN_PROGRESS,
+      },
+      {
+        name: 'Rohan Sharma',
+        contact: '+91 9988776655',
+        email: 'rohan.sharma@example.com',
+        inquiryType: 'Transport',
+        message: 'Do you provide school bus transport facility to Sector 14 area?',
+        status: InquiryStatus.RESOLVED,
+      },
+    ];
+
+    const seeded = await Promise.all(
+      defaultInquiries.map((dto) => this.inquiryRepository.create(dto)),
+    );
+
+    return { message: 'Successfully seeded default inquiries', count: seeded.length, items: seeded };
+  }
+}
