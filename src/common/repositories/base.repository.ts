@@ -76,6 +76,7 @@ export abstract class BaseRepository<
         .sort(sortOptions)
         .skip(skip)
         .limit(limitNum)
+        .lean()
         .exec(),
       this.model.countDocuments(finalQuery).exec(),
     ]);
@@ -83,7 +84,7 @@ export abstract class BaseRepository<
     const totalPages = Math.ceil(total / limitNum) || 1;
 
     return {
-      items: items as T[],
+      items: items as unknown as T[],
       total,
       page: pageNum,
       limit: limitNum,
@@ -95,11 +96,11 @@ export abstract class BaseRepository<
 
   async findById(id: string): Promise<T> {
     const filter = isObjectId(id) ? { _id: id } : { publicId: id };
-    const entity = await this.model.findOne(filter).exec();
+    const entity = await this.model.findOne(filter).lean().exec();
     if (!entity) {
       throw new NotFoundException(`Entity with ID "${id}" not found`);
     }
-    return entity as T;
+    return entity as unknown as T;
   }
 
   async update(id: string, updateDto: any): Promise<T> {
@@ -109,20 +110,21 @@ export abstract class BaseRepository<
         returnDocument: 'after',
         runValidators: true,
       })
+      .lean()
       .exec();
     if (!updatedEntity) {
       throw new NotFoundException(`Entity with ID "${id}" not found`);
     }
-    return updatedEntity as T;
+    return updatedEntity as unknown as T;
   }
 
   async delete(id: string): Promise<T> {
     const filter = isObjectId(id) ? { _id: id } : { publicId: id };
-    const deletedEntity = await this.model.findOneAndDelete(filter).exec();
+    const deletedEntity = await this.model.findOneAndDelete(filter).lean().exec();
     if (!deletedEntity) {
       throw new NotFoundException(`Entity with ID "${id}" not found`);
     }
-    return deletedEntity as T;
+    return deletedEntity as unknown as T;
   }
 
   async count(filter: Record<string, any> = {}): Promise<number> {

@@ -14,17 +14,17 @@ export class SchoolSettingRepository extends BaseRepository<SchoolSettingDocumen
   }
 
   async findByKey(key: string): Promise<SchoolSettingDocument | null> {
-    return this.schoolSettingModel.findOne({ key }).exec();
+    return this.schoolSettingModel.findOne({ key }).lean().exec() as any;
   }
 
   async findActive(): Promise<SchoolSettingDocument | null> {
-    const active = await this.schoolSettingModel.findOne({ status: 'Active' }).exec();
-    if (active) return active;
-    const regexActive = await this.schoolSettingModel.findOne({ status: { $regex: /^active$/i } as any }).exec();
-    if (regexActive) return regexActive;
-    const nonInactive = await this.schoolSettingModel.findOne({ status: { $ne: 'Inactive' } }).exec();
-    if (nonInactive) return nonInactive;
-    return this.schoolSettingModel.findOne({ key: 'site_datasource' }).exec();
+    const active = await this.schoolSettingModel.findOne({ status: 'Active' }).lean().exec();
+    if (active) return active as any;
+    const regexActive = await this.schoolSettingModel.findOne({ status: { $regex: /^active$/i } as any }).lean().exec();
+    if (regexActive) return regexActive as any;
+    const nonInactive = await this.schoolSettingModel.findOne({ status: { $ne: 'Inactive' } }).lean().exec();
+    if (nonInactive) return nonInactive as any;
+    return this.schoolSettingModel.findOne({ key: 'site_datasource' }).lean().exec() as any;
   }
 
   async deactivateOthers(excludeId?: string, category?: string): Promise<any> {
