@@ -2,6 +2,8 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { v2 as cloudinary } from 'cloudinary';
 import { Readable } from 'stream';
+import * as fs from 'fs';
+import * as path from 'path';
 import { IStorageStrategy, UploadResult } from './storage-strategy.interface';
 
 @Injectable()
@@ -37,14 +39,14 @@ export class CloudinaryStorageStrategy implements IStorageStrategy {
 
     const doUpload = (resourceType: 'auto' | 'image' | 'raw'): Promise<UploadResult> => {
       return new Promise((resolve, reject) => {
-        const sanitizedFilename = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const cleanName = file.originalname.replace(/\.pdf$/i, '').replace(/[^a-zA-Z0-9._-]/g, '_');
         const options: Record<string, any> = {
           folder,
           resource_type: resourceType,
         };
 
         if (resourceType === 'raw' || isPdf) {
-          options.public_id = `${Date.now()}_${sanitizedFilename}`;
+          options.public_id = `${Date.now()}_${cleanName}`;
         } else {
           options.use_filename = true;
           options.unique_filename = true;
@@ -60,9 +62,24 @@ export class CloudinaryStorageStrategy implements IStorageStrategy {
             if (!result) {
               return reject(new Error('Cloudinary upload returned null result'));
             }
+            let finalUrl = result.secure_url;
+            if (isPdf && result.public_id) {
+              try {
+                const expiresAt = Math.floor(Date.now() / 1000) + 10 * 365 * 24 * 3600; // 10 years
+                finalUrl = cloudinary.utils.private_download_url(result.public_id, 'pdf', {
+                  resource_type: result.resource_type || 'image',
+                  type: 'upload',
+                  expires_at: expiresAt,
+                });
+                this.logger.log(`Generated signed Cloudinary PDF URL for ${result.public_id}`);
+              } catch (err: any) {
+                this.logger.warn(`Failed to generate signed PDF URL, using secure_url:`, err);
+              }
+            }
+
             this.invalidateCache();
             resolve({
-              url: result.secure_url,
+              url: finalUrl,
               key: result.public_id,
               provider: 'cloudinary',
             });
@@ -74,7 +91,20 @@ export class CloudinaryStorageStrategy implements IStorageStrategy {
       });
     };
 
-    if (isPdf || !isMedia) {
+    if (isPdf) {
+      try {
+        return await doUpload('image');
+      } catch (err: any) {
+        this.logger.warn(`Cloudinary 'image' upload failed for PDF ${file.originalname} (${err?.message || err}). Retrying with 'auto'...`);
+        try {
+          return await doUpload('auto');
+        } catch {
+          return await doUpload('raw');
+        }
+      }
+    }
+
+    if (!isMedia) {
       try {
         return await doUpload('raw');
       } catch (err: any) {
@@ -157,14 +187,28 @@ export class CloudinaryStorageStrategy implements IStorageStrategy {
     try {
       const res = await fetchWithRetry();
       const resources = res?.resources || [];
-      const formatted = resources.map((r: any) => ({
-        id: r.public_id || r.asset_id,
-        url: r.secure_url || r.url,
-        title: (r.public_id || '').split('/').pop() || 'Cloudinary Asset',
-        category: (r.folder || r.public_id || '').includes('/') ? (r.public_id || '').split('/').slice(0, -1).pop() || 'Assets' : 'General',
-        resourceType: r.resource_type || 'image',
-        format: r.format || '',
-      }));
+      const expiresAt = Math.floor(Date.now() / 1000) + 10 * 365 * 24 * 3600;
+      const formatted = resources.map((r: any) => {
+        let assetUrl = r.secure_url || r.url;
+        const isPdf = r.format === 'pdf' || (r.public_id || '').toLowerCase().endsWith('.pdf');
+        if (isPdf && r.public_id) {
+          try {
+            assetUrl = cloudinary.utils.private_download_url(r.public_id, 'pdf', {
+              resource_type: r.resource_type || 'image',
+              type: 'upload',
+              expires_at: expiresAt,
+            });
+          } catch {}
+        }
+        return {
+          id: r.public_id || r.asset_id,
+          url: assetUrl,
+          title: (r.public_id || '').split('/').pop() || 'Cloudinary Asset',
+          category: (r.folder || r.public_id || '').includes('/') ? (r.public_id || '').split('/').slice(0, -1).pop() || 'Assets' : 'General',
+          resourceType: r.resource_type || 'image',
+          format: r.format || '',
+        };
+      });
 
       this.cache.set(cacheKey, { timestamp: now, data: formatted });
       return formatted;
