@@ -30,13 +30,15 @@ export class GalleryController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List gallery items with pagination and eventType filter' })
+  @ApiOperation({ summary: 'List gallery items with pagination, eventType, and directory filter' })
   @ApiQuery({ name: 'eventType', required: false, description: 'Filter gallery by event type' })
+  @ApiQuery({ name: 'directory', required: false, description: 'Filter gallery by directory path' })
   findAll(
     @Query() queryDto: PaginationQueryDto = {},
     @Query('eventType') eventType?: string,
+    @Query('directory') directory?: string,
   ) {
-    return this.galleryService.findAll(queryDto, eventType);
+    return this.galleryService.findAll(queryDto, eventType, directory);
   }
 
   @Get(':id')

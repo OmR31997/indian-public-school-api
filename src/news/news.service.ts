@@ -9,11 +9,15 @@ export class NewsService {
   constructor(private readonly newsRepository: NewsRepository) {}
 
   async create(createNewsDto: CreateNewsDto) {
-    return this.newsRepository.create(createNewsDto);
+    const payload = { ...createNewsDto };
+    if (!payload.redirectUrl && payload.attachmentUrl) {
+      payload.redirectUrl = payload.attachmentUrl;
+    }
+    return this.newsRepository.create(payload);
   }
 
   async findAll(queryDto: PaginationQueryDto = {}) {
-    return this.newsRepository.findAll(queryDto, ['title', 'redirectUrl']);
+    return this.newsRepository.findAll(queryDto, ['title', 'redirectUrl', 'attachmentUrl']);
   }
 
   async findOne(id: string) {
@@ -21,7 +25,11 @@ export class NewsService {
   }
 
   async update(id: string, updateNewsDto: UpdateNewsDto) {
-    return this.newsRepository.update(id, updateNewsDto);
+    const payload = { ...updateNewsDto };
+    if (!payload.redirectUrl && payload.attachmentUrl) {
+      payload.redirectUrl = payload.attachmentUrl;
+    }
+    return this.newsRepository.update(id, payload);
   }
 
   async remove(id: string) {

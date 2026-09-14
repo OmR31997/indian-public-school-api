@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateNewsDto {
   @ApiProperty({ example: 'Admission Open 2026-27' })
@@ -7,8 +7,14 @@ export class CreateNewsDto {
   @IsNotEmpty()
   title: string;
 
-  @ApiProperty({ example: '/admission/admission-procedure' })
+  @ApiProperty({ example: '/admission/admission-procedure', required: false })
   @IsString()
-  @IsNotEmpty()
-  redirectUrl: string;
+  @IsOptional()
+  redirectUrl?: string;
+
+  @ApiProperty({ example: 'https://res.cloudinary.com/demo/image/upload/v1/sample.pdf', required: false })
+  @IsString()
+  @IsOptional()
+  attachmentUrl?: string;
 }
+

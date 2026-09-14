@@ -46,22 +46,49 @@ export class UploadsService {
     }
 
     const provider = this.configService.get<string>('STORAGE_PROVIDER', 'cloudinary');
-    const strategy = provider === 'cloudinary' ? this.cloudinaryStrategy : this.localStorageStrategy;
 
-    const targetFolder = folder || (album && album !== 'General' ? `indian-public-school/assets/${album}` : 'indian-public-school');
-    const result = await strategy.uploadFile(file, targetFolder);
+    const isDoc =
+      file.mimetype === 'application/pdf' ||
+      file.originalname.toLowerCase().endsWith('.pdf') ||
+      (!file.mimetype.startsWith('image/') && !file.mimetype.startsWith('video/'));
+
+    let targetFolder: string;
+    if (folder) {
+      targetFolder = folder;
+    } else if (album && album !== 'General') {
+      targetFolder = `indian-public-school/assets/${album}`;
+    } else if (isDoc) {
+      targetFolder = `indian-public-school/assets/Documents`;
+    } else {
+      targetFolder = `indian-public-school/assets/General`;
+    }
+
+    let result: import('./strategies/storage-strategy.interface').UploadResult;
+
+    try {
+      const strategy = provider === 'cloudinary' ? this.cloudinaryStrategy : this.localStorageStrategy;
+      result = await strategy.uploadFile(file, targetFolder);
+    } catch (err: any) {
+      this.logger.error(`Storage provider (${provider}) upload failed for "${file?.originalname}": ${err?.message || err}`);
+      throw new BadRequestException(`Cloudinary upload failed: ${err?.message || err || 'Unknown upload error'}`);
+    }
 
     let fileType: 'image' | 'pdf' | 'video' | 'document' = 'document';
     if (file.mimetype.startsWith('image/')) fileType = 'image';
     else if (file.mimetype.startsWith('video/')) fileType = 'video';
     else if (file.mimetype === 'application/pdf') fileType = 'pdf';
 
-    const directoryPath = folder ? `/${folder.replace(/^\/+/, '')}` : `/album/${(album || 'General').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+    const eventType = isDoc ? (album && album !== 'General' ? album : 'Documents') : (album || 'General');
+    const directoryPath = folder
+      ? `/${folder.replace(/^\/+/, '')}`
+      : isDoc
+      ? 'indian-public-school/assets/Documents'
+      : `/album/${(album || 'General').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 
     const asset = await this.galleryRepository.create({
       eventName: file.originalname,
       fileUrl: [result.url],
-      eventType: album || 'General',
+      eventType: eventType,
       directory: directoryPath,
     });
 

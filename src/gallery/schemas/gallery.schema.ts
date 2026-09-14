@@ -4,6 +4,8 @@ import { generatePublicId } from '../../common/utils/public-id';
 
 export enum GalleryEventType {
   GENERAL = 'General',
+  DOCUMENTS = 'Documents',
+  NEWS = 'News',
   CAMPUS = 'Campus',
   EVENTS = 'Events',
   SPORTS = 'Sports',

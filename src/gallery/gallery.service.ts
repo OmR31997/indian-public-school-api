@@ -37,7 +37,7 @@ export class GalleryService {
     return this.galleryRepository.create(createGalleryDto);
   }
 
-  async findAll(queryDto: PaginationQueryDto = {}, eventType?: string) {
+  async findAll(queryDto: PaginationQueryDto = {}, eventType?: string, directory?: string) {
     const page = Math.max(1, Number(queryDto.page) || 1);
     const limit = Math.max(1, Math.min(500, Number(queryDto.limit) || 10));
     const search = (queryDto.search || '').trim().toLowerCase();
@@ -49,8 +49,16 @@ export class GalleryService {
         activeEventType = String((queryDto as any).filterValue).trim();
       }
     }
-    if (!activeEventType && (queryDto as any).filterValue && (queryDto as any).filterValue !== 'All') {
+    if (!activeEventType && (queryDto as any).filterValue && (queryDto as any).filterValue !== 'All' && (queryDto as any).filterKey !== 'directory') {
       activeEventType = String((queryDto as any).filterValue).trim();
+    }
+
+    // Determine directory filter value from all possible query parameters
+    let activeDirectory = (directory || (queryDto as any).directory || '').trim();
+    if (!activeDirectory && (queryDto as any).filterKey && (queryDto as any).filterValue) {
+      if (String((queryDto as any).filterKey).toLowerCase() === 'directory') {
+        activeDirectory = String((queryDto as any).filterValue).trim();
+      }
     }
 
     const sortBy = queryDto.sortBy || 'createdAt';
@@ -131,6 +139,16 @@ export class GalleryService {
       combined = combined.filter((item: any) => {
         const itemType = String(item.eventType || '').trim().toLowerCase();
         return itemType === activeEventType.toLowerCase();
+      });
+    }
+
+    // 6b. Apply case-insensitive directory filter
+    if (activeDirectory && activeDirectory.toLowerCase() !== 'all') {
+      const targetDir = activeDirectory.trim().toLowerCase();
+      combined = combined.filter((item: any) => {
+        const itemDir = String(item.directory || '').trim().toLowerCase();
+        const itemUrls = Array.isArray(item.fileUrl) ? item.fileUrl : [item.fileUrl];
+        return itemDir.includes(targetDir) || targetDir.includes(itemDir) || itemUrls.some((u: string) => String(u).toLowerCase().includes(targetDir));
       });
     }
 

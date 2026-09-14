@@ -14,7 +14,7 @@ export class LocalStorageStrategy implements IStorageStrategy {
     }
   }
 
-  async uploadFile(file: Express.Multer.File): Promise<UploadResult> {
+  async uploadFile(file: Express.Multer.File, folder?: string): Promise<UploadResult> {
     const filename = `${Date.now()}-${file.originalname.replace(/\s+/g, '-')}`;
     const filePath = path.join(this.uploadDir, filename);
 

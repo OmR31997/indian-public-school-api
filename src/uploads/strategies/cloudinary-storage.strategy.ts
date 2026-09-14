@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { v2 as cloudinary } from 'cloudinary';
+import { Readable } from 'stream';
 import { IStorageStrategy, UploadResult } from './storage-strategy.interface';
 
 @Injectable()
@@ -24,27 +25,69 @@ export class CloudinaryStorageStrategy implements IStorageStrategy {
   }
 
   async uploadFile(file: Express.Multer.File, folder: string = 'indian-public-school'): Promise<UploadResult> {
-    return new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        { folder, resource_type: 'auto' },
-        (error, result) => {
-          if (error) {
-            this.logger.error('Cloudinary upload error', error);
-            return reject(error);
-          }
-          if (!result) {
-            return reject(new Error('Cloudinary upload returned null result'));
-          }
-          this.invalidateCache();
-          resolve({
-            url: result.secure_url,
-            key: result.public_id,
-            provider: 'cloudinary',
-          });
-        },
-      );
-      uploadStream.end(file.buffer);
-    });
+    if (!file || !file.buffer || file.buffer.length === 0) {
+      throw new BadRequestException('Empty file or missing file buffer provided');
+    }
+
+    const isPdf =
+      file.mimetype === 'application/pdf' ||
+      file.originalname.toLowerCase().endsWith('.pdf');
+
+    const isMedia = file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/');
+
+    const doUpload = (resourceType: 'auto' | 'image' | 'raw'): Promise<UploadResult> => {
+      return new Promise((resolve, reject) => {
+        const sanitizedFilename = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const options: Record<string, any> = {
+          folder,
+          resource_type: resourceType,
+        };
+
+        if (resourceType === 'raw' || isPdf) {
+          options.public_id = `${Date.now()}_${sanitizedFilename}`;
+        } else {
+          options.use_filename = true;
+          options.unique_filename = true;
+        }
+
+        const uploadStream = cloudinary.uploader.upload_stream(
+          options,
+          (error, result) => {
+            if (error) {
+              this.logger.error(`Cloudinary upload error (resource_type=${resourceType}, filename=${file.originalname}):`, error);
+              return reject(error);
+            }
+            if (!result) {
+              return reject(new Error('Cloudinary upload returned null result'));
+            }
+            this.invalidateCache();
+            resolve({
+              url: result.secure_url,
+              key: result.public_id,
+              provider: 'cloudinary',
+            });
+          },
+        );
+
+        const readStream = Readable.from(file.buffer);
+        readStream.pipe(uploadStream);
+      });
+    };
+
+    if (isPdf || !isMedia) {
+      try {
+        return await doUpload('raw');
+      } catch (err: any) {
+        this.logger.warn(`Cloudinary 'raw' upload failed for ${file.originalname} (${err?.message || err}). Retrying with resource_type='auto'...`);
+        return await doUpload('auto');
+      }
+    }
+
+    try {
+      return await doUpload('auto');
+    } catch (err: any) {
+      return await doUpload('image');
+    }
   }
 
   async deleteFile(key: string): Promise<boolean> {

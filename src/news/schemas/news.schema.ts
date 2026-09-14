@@ -17,8 +17,11 @@ export class News {
   @Prop({ required: true, trim: true })
   title!: string;
 
-  @Prop({ required: true, trim: true })
-  redirectUrl!: string;
+  @Prop({ required: false, trim: true, default: '' })
+  redirectUrl?: string;
+
+  @Prop({ required: false, trim: true, default: '' })
+  attachmentUrl?: string;
 
   @Prop({ default: Date.now })
   createdAt!: Date;
