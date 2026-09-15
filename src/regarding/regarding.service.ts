@@ -15,18 +15,41 @@ export class RegardingService {
   constructor(private readonly schoolSettingsService: SchoolSettingsService) {}
 
   async getDatasource(): Promise<Datasource> {
+    let datasource: Datasource = {};
     try {
       const setting = await this.schoolSettingsService.findActiveSetting();
       const value = setting?.value;
 
-      if (value && typeof value === 'object' && !Array.isArray(value))
-        return value as Datasource;
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        datasource = { ...(value as Datasource) };
+      }
     } catch {
       // The JSON fallback must also work when MongoDB is temporarily down.
     }
 
-    const filePath = join(process.cwd(), 'public', 'cloud-datasource.json');
-    return JSON.parse(await readFile(filePath, 'utf8')) as Datasource;
+    if (!datasource || Object.keys(datasource).length === 0) {
+      try {
+        const filePath = join(process.cwd(), 'public', 'cloud-datasource.json');
+        datasource = JSON.parse(await readFile(filePath, 'utf8')) as Datasource;
+      } catch {
+        datasource = {};
+      }
+    }
+
+    try {
+      const logoSetting = await this.schoolSettingsService.findByKey('site_logo');
+      if (logoSetting?.value) datasource.site_logo = logoSetting.value;
+
+      const certSetting = await this.schoolSettingsService.findByKey('certified_board');
+      if (certSetting?.value) datasource.certified_board = certSetting.value;
+
+      const trustSetting = await this.schoolSettingsService.findByKey('trust_board');
+      if (trustSetting?.value) datasource.trust_board = trustSetting.value;
+    } catch {
+      // Ignore errors when fetching individual settings
+    }
+
+    return datasource;
   }
 
   async getRegarding() {

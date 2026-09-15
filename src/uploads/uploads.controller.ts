@@ -9,6 +9,7 @@ import {
   UploadedFile,
   Body,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadsService } from './uploads.service';
@@ -66,17 +67,21 @@ export class UploadsController {
     return this.uploadsService.findAll(queryDto, eventType);
   }
 
-  @Get(':id')
+  @Get('*')
   @ApiOperation({ summary: 'Get asset details by ID' })
-  findOne(@Param('id') id: string) {
-    return this.uploadsService.findOne(id);
+  findOne(@Param() params: any, @Req() req: any) {
+    const rawPath = req.url ? req.url.split('?')[0] : '';
+    const targetId = decodeURIComponent(rawPath.replace(/^\/api\/v1\/uploads\/?/, '').replace(/^\/v1\/uploads\/?/, '').replace(/^\/+/, ''));
+    return this.uploadsService.findOne(targetId);
   }
 
   @ApiBearerAuth('JWT-auth')
   @UseGuards(JwtAuthGuard)
-  @Delete(':id')
+  @Delete('*')
   @ApiOperation({ summary: 'Delete file from cloud/local storage and database' })
-  remove(@Param('id') id: string) {
-    return this.uploadsService.remove(id);
+  remove(@Param() params: any, @Req() req: any) {
+    const rawPath = req.url ? req.url.split('?')[0] : '';
+    const targetId = decodeURIComponent(rawPath.replace(/^\/api\/v1\/uploads\/?/, '').replace(/^\/v1\/uploads\/?/, '').replace(/^\/+/, ''));
+    return this.uploadsService.remove(targetId);
   }
 }

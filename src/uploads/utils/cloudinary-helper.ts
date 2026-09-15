@@ -7,18 +7,25 @@
 export function extractCloudinaryPublicId(url: string): string | null {
   if (!url || typeof url !== 'string') return null;
 
-  // Match path after /upload/ (optional /v123456/) until file extension
-  const match = url.match(/\/upload\/(?:v\d+\/)?(.+?)(?:\.[a-zA-Z0-9]+)?$/);
+  const decodedUrl = decodeURIComponent(url);
+
+  // If it's a full Cloudinary URL with /upload/
+  const match = decodedUrl.match(/\/upload\/(?:v\d+\/)?(.+?)(?:\.[a-zA-Z0-9]+)?$/);
   if (match && match[1]) {
     return match[1];
   }
 
-  // Fallback: If URL doesn't contain /upload/ but is a path
-  const parts = url.split('/');
+  // If it's already a Cloudinary public ID or key without http(s)://
+  if (!decodedUrl.startsWith('http://') && !decodedUrl.startsWith('https://')) {
+    // Remove extension if present, but keep folder hierarchy
+    return decodedUrl.replace(/\.[a-zA-Z0-9]+$/, '');
+  }
+
+  // Fallback: extract last filename part if full URL couldn't match /upload/
+  const parts = decodedUrl.split('/');
   const filename = parts[parts.length - 1];
   if (filename) {
-    const dotIndex = filename.lastIndexOf('.');
-    return dotIndex > 0 ? filename.substring(0, dotIndex) : filename;
+    return filename.replace(/\.[a-zA-Z0-9]+$/, '');
   }
 
   return null;

@@ -119,6 +119,27 @@ export class UploadsService {
   }
 
   async remove(id: string) {
+    if (id.startsWith('cdn-') || id.includes('http') || id.includes('/')) {
+      let targetUrl = id.replace(/^cdn-/, '');
+
+      const existing = await this.galleryRepository.findAll(
+        { page: 1, limit: 10 },
+        [],
+        { fileUrl: { $in: [targetUrl] } },
+      );
+      const items = existing.items || (existing as any).data || [];
+
+      for (const doc of items) {
+        const docId = (doc as any)._id || (doc as any).id;
+        if (docId) {
+          await this.galleryRepository.delete(String(docId));
+        }
+      }
+
+      await this.deleteFileByUrl(targetUrl);
+      return { deleted: true, id };
+    }
+
     try {
       const asset = await this.galleryRepository.findById(id);
       if (asset && Array.isArray(asset.fileUrl)) {

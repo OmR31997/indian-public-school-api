@@ -8,6 +8,7 @@ import {
   Delete,
   Query,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { GalleryService } from './gallery.service';
 import { CreateGalleryDto } from './dto/create-gallery.dto';
@@ -41,25 +42,35 @@ export class GalleryController {
     return this.galleryService.findAll(queryDto, eventType, directory);
   }
 
-  @Get(':id')
+  @Get('*')
   @ApiOperation({ summary: 'Get gallery item details by ID' })
-  findOne(@Param('id') id: string) {
-    return this.galleryService.findOne(id);
+  findOne(@Param() params: any, @Req() req: any) {
+    const rawPath = req.url ? req.url.split('?')[0] : '';
+    const targetId = decodeURIComponent(rawPath.replace(/^\/api\/v1\/gallery\/?/, '').replace(/^\/v1\/gallery\/?/, '').replace(/^\/+/, ''));
+    return this.galleryService.findOne(targetId);
   }
 
   @ApiBearerAuth('JWT-auth')
   @UseGuards(JwtAuthGuard)
-  @Patch(':id')
+  @Patch('*')
   @ApiOperation({ summary: 'Update a gallery entry by ID' })
-  update(@Param('id') id: string, @Body() updateGalleryDto: UpdateGalleryDto) {
-    return this.galleryService.update(id, updateGalleryDto);
+  update(
+    @Body() updateGalleryDto: UpdateGalleryDto,
+    @Param() params: any,
+    @Req() req: any,
+  ) {
+    const rawPath = req.url ? req.url.split('?')[0] : '';
+    const targetId = decodeURIComponent(rawPath.replace(/^\/api\/v1\/gallery\/?/, '').replace(/^\/v1\/gallery\/?/, '').replace(/^\/+/, ''));
+    return this.galleryService.update(targetId, updateGalleryDto);
   }
 
   @ApiBearerAuth('JWT-auth')
   @UseGuards(JwtAuthGuard)
-  @Delete(':id')
+  @Delete('*')
   @ApiOperation({ summary: 'Delete a gallery item by ID' })
-  remove(@Param('id') id: string) {
-    return this.galleryService.remove(id);
+  remove(@Param() params: any, @Req() req: any) {
+    const rawPath = req.url ? req.url.split('?')[0] : '';
+    const targetId = decodeURIComponent(rawPath.replace(/^\/api\/v1\/gallery\/?/, '').replace(/^\/v1\/gallery\/?/, '').replace(/^\/+/, ''));
+    return this.galleryService.remove(targetId);
   }
 }

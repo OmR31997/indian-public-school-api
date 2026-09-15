@@ -15,6 +15,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { User } from './schemas/user.schema';
+import { generatePublicId } from '../common/utils/public-id';
 
 @Injectable()
 export class AuthService implements OnModuleInit {
@@ -46,12 +47,17 @@ export class AuthService implements OnModuleInit {
         status: 'ACTIVE',
       });
     } else {
-      await this.userRepository.update(existingAdmin.publicId, {
+      const adminId = existingAdmin.publicId || String((existingAdmin as any)._id);
+      const updates: any = {
         passwordHash,
         role: 'Super Admin',
         allowedModules: ['*'],
         status: 'ACTIVE',
-      });
+      };
+      if (!existingAdmin.publicId) {
+        updates.publicId = generatePublicId('USR');
+      }
+      await this.userRepository.update(adminId, updates);
     }
   }
 
