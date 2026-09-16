@@ -46,6 +46,13 @@ export class InquiriesController {
     return this.inquiriesService.findAll(queryDto, inquiryType, status);
   }
 
+  @Get('track')
+  @ApiOperation({ summary: 'Track inquiry or feedback submission status by email, phone, or ID' })
+  @ApiQuery({ name: 'query', required: true, type: String, description: 'Email address, contact phone number, or submission ID' })
+  track(@Query('query') query: string) {
+    return this.inquiriesService.trackInquiry(query);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get inquiry details by ID' })
   findOne(@Param('id') id: string) {

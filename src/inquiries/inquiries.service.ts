@@ -37,6 +37,30 @@ export class InquiriesService {
     return this.inquiryRepository.findById(id);
   }
 
+  async trackInquiry(searchQuery: string) {
+    if (!searchQuery || !searchQuery.trim()) {
+      return { items: [], total: 0, page: 1, limit: 10, totalPages: 0, hasNextPage: false, hasPrevPage: false };
+    }
+    const cleanQuery = searchQuery.trim();
+    const isObjectId = /^[0-9a-fA-F]{24}$/.test(cleanQuery);
+
+    const additionalFilter: Record<string, any> = isObjectId
+      ? { _id: cleanQuery }
+      : {
+          $or: [
+            { email: { $regex: new RegExp(cleanQuery, 'i') } },
+            { contact: { $regex: new RegExp(cleanQuery.replace(/[^0-9+]/g, ''), 'i') } },
+            { name: { $regex: new RegExp(cleanQuery, 'i') } },
+          ],
+        };
+
+    return this.inquiryRepository.findAll(
+      { page: 1, limit: 10, sortBy: 'createdAt', sortOrder: 'desc' },
+      [],
+      additionalFilter,
+    );
+  }
+
   async update(id: string, updateInquiryDto: UpdateInquiryDto) {
     return this.inquiryRepository.update(id, updateInquiryDto);
   }
