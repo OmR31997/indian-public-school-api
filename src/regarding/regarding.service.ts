@@ -36,19 +36,6 @@ export class RegardingService {
       }
     }
 
-    try {
-      const logoSetting = await this.schoolSettingsService.findByKey('site_logo');
-      if (logoSetting?.value) datasource.site_logo = logoSetting.value;
-
-      const certSetting = await this.schoolSettingsService.findByKey('certified_board');
-      if (certSetting?.value) datasource.certified_board = certSetting.value;
-
-      const trustSetting = await this.schoolSettingsService.findByKey('trust_board');
-      if (trustSetting?.value) datasource.trust_board = trustSetting.value;
-    } catch {
-      // Ignore errors when fetching individual settings
-    }
-
     return datasource;
   }
 

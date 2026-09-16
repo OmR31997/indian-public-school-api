@@ -18,17 +18,20 @@ export class SchoolSettingRepository extends BaseRepository<SchoolSettingDocumen
   }
 
   async findActive(): Promise<SchoolSettingDocument | null> {
+    const activeDs = await this.schoolSettingModel.findOne({ key: 'site_datasource', status: 'Active' }).lean().exec();
+    if (activeDs) return activeDs as any;
+
+    const ds = await this.schoolSettingModel.findOne({ key: 'site_datasource' }).lean().exec();
+    if (ds) return ds as any;
+
     const active = await this.schoolSettingModel.findOne({ status: 'Active' }).lean().exec();
     if (active) return active as any;
-    const regexActive = await this.schoolSettingModel.findOne({ status: { $regex: /^active$/i } as any }).lean().exec();
-    if (regexActive) return regexActive as any;
-    const nonInactive = await this.schoolSettingModel.findOne({ status: { $ne: 'Inactive' } }).lean().exec();
-    if (nonInactive) return nonInactive as any;
-    return this.schoolSettingModel.findOne({ key: 'site_datasource' }).lean().exec() as any;
+
+    return null;
   }
 
   async deactivateOthers(excludeId?: string, category?: string): Promise<any> {
-    const query: any = {};
+    const query: any = { key: { $ne: 'site_datasource' } };
     if (excludeId) {
       query._id = { $ne: excludeId };
     }
@@ -39,9 +42,9 @@ export class SchoolSettingRepository extends BaseRepository<SchoolSettingDocumen
   }
 
   async deactivateOthersByKey(excludeKey?: string, category?: string): Promise<any> {
-    const query: any = {};
+    const query: any = { key: { $ne: 'site_datasource' } };
     if (excludeKey) {
-      query.key = { $ne: excludeKey };
+      query.key = { $nin: [excludeKey, 'site_datasource'] };
     }
     if (category) {
       query.category = category;

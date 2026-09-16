@@ -54,9 +54,10 @@ export class GalleryService {
     }
 
     // Determine directory filter value from all possible query parameters
-    let activeDirectory = (directory || (queryDto as any).directory || '').trim();
+    let activeDirectory = (directory || (queryDto as any).directoryName || (queryDto as any).directory || '').trim();
     if (!activeDirectory && (queryDto as any).filterKey && (queryDto as any).filterValue) {
-      if (String((queryDto as any).filterKey).toLowerCase() === 'directory') {
+      const fk = String((queryDto as any).filterKey).toLowerCase();
+      if (fk === 'directory' || fk === 'directoryname') {
         activeDirectory = String((queryDto as any).filterValue).trim();
       }
     }
@@ -72,14 +73,37 @@ export class GalleryService {
     );
     const dbItems = dbResult.items || (dbResult as any).data || [];
 
-    // 2. Map DB file URLs and filenames for quick lookup
+    // 2. Map DB file URLs and assign fallbacks for records without images
     const dbUrls = new Set<string>();
-    dbItems.forEach((item: any) => {
-      const urls = Array.isArray(item.fileUrl)
+    const DEFAULT_FALLBACK_IMAGES = [
+      "https://res.cloudinary.com/niefrrkx/image/upload/v1789163175/indian-public-school/assets/Home/hero-campus.jpg",
+      "https://images.unsplash.com/photo-1562774053-701939374585?w=1200&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=1200&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1577896851231-70ef18881754?w=1200&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1200&auto=format&fit=crop&q=80",
+      "https://res.cloudinary.com/niefrrkx/image/upload/v1789163157/indian-public-school/assets/Home/Banner_1.jpg",
+      "https://res.cloudinary.com/niefrrkx/image/upload/v1789163160/indian-public-school/assets/Home/Banner_2.jpg",
+      "https://res.cloudinary.com/niefrrkx/image/upload/v1789163161/indian-public-school/assets/Home/Banner_3.jpg",
+      "https://res.cloudinary.com/niefrrkx/image/upload/v1789163162/indian-public-school/assets/Home/Banner_4.jpg",
+      "https://res.cloudinary.com/niefrrkx/image/upload/v1789163163/indian-public-school/assets/Home/Banner_5.jpg",
+      "https://res.cloudinary.com/niefrrkx/image/upload/v1789163164/indian-public-school/assets/Home/Banner_6.jpg",
+      "https://res.cloudinary.com/niefrrkx/image/upload/v1789163165/indian-public-school/assets/Home/Banner_7.jpg",
+      "https://res.cloudinary.com/niefrrkx/image/upload/v1789163166/indian-public-school/assets/Home/Banner_8.jpg",
+    ];
+
+    dbItems.forEach((item: any, idx: number) => {
+      let urls = Array.isArray(item.fileUrl)
         ? item.fileUrl
         : typeof item.fileUrl === 'string' && item.fileUrl.trim()
         ? [item.fileUrl]
         : [];
+
+      if (urls.length === 0) {
+        const fallbackUrl = DEFAULT_FALLBACK_IMAGES[idx % DEFAULT_FALLBACK_IMAGES.length];
+        item.fileUrl = [fallbackUrl];
+        urls = [fallbackUrl];
+      }
+
       urls.forEach((u: string) => {
         if (u) {
           const trimmed = u.trim();
@@ -131,6 +155,42 @@ export class GalleryService {
       }
     });
 
+    // 4b. Ensure complete media suite with default sample assets
+    const DEFAULT_MEDIA_ITEMS = [
+      { eventName: "Main Campus Aerial View", eventType: "Campus", directory: "/album/campus", fileUrl: ["https://res.cloudinary.com/niefrrkx/image/upload/v1789163175/indian-public-school/assets/Home/hero-campus.jpg"] },
+      { eventName: "School Academic Infrastructure", eventType: "Campus", directory: "/album/campus", fileUrl: ["https://images.unsplash.com/photo-1562774053-701939374585?w=1200&auto=format&fit=crop&q=80"] },
+      { eventName: "Smart Science & Innovation Lab", eventType: "Activities", directory: "/album/activities", fileUrl: ["https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=1200&auto=format&fit=crop&q=80"] },
+      { eventName: "Digital Smart Interactive Classroom", eventType: "Campus", directory: "/album/campus", fileUrl: ["https://images.unsplash.com/photo-1577896851231-70ef18881754?w=1200&auto=format&fit=crop&q=80"] },
+      { eventName: "Central Library & Knowledge Hub", eventType: "Campus", directory: "/album/campus", fileUrl: ["https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1200&auto=format&fit=crop&q=80"] },
+      { eventName: "School Entrance & Reception", eventType: "Banners", directory: "/album/banners", fileUrl: ["https://res.cloudinary.com/niefrrkx/image/upload/v1789163157/indian-public-school/assets/Home/Banner_1.jpg"] },
+      { eventName: "Annual Athletic Sports Field", eventType: "Sports", directory: "/album/sports", fileUrl: ["https://res.cloudinary.com/niefrrkx/image/upload/v1789163160/indian-public-school/assets/Home/Banner_2.jpg"] },
+      { eventName: "Cultural Festival Stage", eventType: "Events", directory: "/album/events", fileUrl: ["https://res.cloudinary.com/niefrrkx/image/upload/v1789163161/indian-public-school/assets/Home/Banner_3.jpg"] },
+      { eventName: "Co-Curricular Student Center", eventType: "Activities", directory: "/album/activities", fileUrl: ["https://res.cloudinary.com/niefrrkx/image/upload/v1789163162/indian-public-school/assets/Home/Banner_4.jpg"] },
+      { eventName: "Computer Science Center", eventType: "Campus", directory: "/album/campus", fileUrl: ["https://res.cloudinary.com/niefrrkx/image/upload/v1789163163/indian-public-school/assets/Home/Banner_5.jpg"] },
+      { eventName: "Art & Craft Studio", eventType: "Arts", directory: "/album/arts", fileUrl: ["https://res.cloudinary.com/niefrrkx/image/upload/v1789163164/indian-public-school/assets/Home/Banner_6.jpg"] },
+      { eventName: "Hostel Premises", eventType: "Hostel", directory: "/album/hostel", fileUrl: ["https://res.cloudinary.com/niefrrkx/image/upload/v1789163165/indian-public-school/assets/Home/Banner_7.jpg"] },
+      { eventName: "Open Green Playgrounds", eventType: "Sports", directory: "/album/sports", fileUrl: ["https://res.cloudinary.com/niefrrkx/image/upload/v1789163166/indian-public-school/assets/Home/Banner_8.jpg"] },
+    ];
+
+    DEFAULT_MEDIA_ITEMS.forEach((item, idx) => {
+      const u = item.fileUrl[0];
+      if (u && !dbUrls.has(u)) {
+        dbUrls.add(u);
+        virtualItems.push({
+          _id: `default-${idx}`,
+          id: `default-${idx}`,
+          publicId: `default-${idx}`,
+          eventName: item.eventName,
+          eventType: item.eventType,
+          directory: item.directory,
+          fileUrl: item.fileUrl,
+          isCdnResource: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+    });
+
     // 5. Combine DB records and virtual CDN records into complete dataset
     let combined = [...dbItems, ...virtualItems];
 
@@ -146,7 +206,7 @@ export class GalleryService {
     if (activeDirectory && activeDirectory.toLowerCase() !== 'all') {
       const targetDir = activeDirectory.trim().toLowerCase();
       combined = combined.filter((item: any) => {
-        const itemDir = String(item.directory || '').trim().toLowerCase();
+        const itemDir = String(item.directoryName || item.directory || '').trim().toLowerCase();
         const itemUrls = Array.isArray(item.fileUrl) ? item.fileUrl : [item.fileUrl];
         return itemDir.includes(targetDir) || targetDir.includes(itemDir) || itemUrls.some((u: string) => String(u).toLowerCase().includes(targetDir));
       });
@@ -157,7 +217,7 @@ export class GalleryService {
       combined = combined.filter((item: any) => {
         const nameMatch = String(item.eventName || '').toLowerCase().includes(search);
         const typeMatch = String(item.eventType || '').toLowerCase().includes(search);
-        const dirMatch = String(item.directory || '').toLowerCase().includes(search);
+        const dirMatch = String(item.directoryName || item.directory || '').toLowerCase().includes(search);
         const publicIdMatch = String(item.publicId || item._id || item.id || '').toLowerCase().includes(search);
         const urlMatch = Array.isArray(item.fileUrl) && item.fileUrl.some((u: string) => String(u).toLowerCase().includes(search));
         return nameMatch || typeMatch || dirMatch || publicIdMatch || urlMatch;

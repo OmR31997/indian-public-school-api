@@ -42,12 +42,13 @@ export class SchoolSettingsService implements OnModuleInit {
     }
   }
 
+  async syncBrandingToDatasource(key: string, value: any) {
+    // Deprecated: No separate records created. Everything is managed inside site_datasource.
+    return;
+  }
+
   async create(dto: CreateSchoolSettingDto) {
     const status = dto.status || 'Active';
-    const isAct = status.toLowerCase() === 'active';
-    if (isAct) {
-      await this.schoolSettingRepository.deactivateOthersByKey(dto.key, dto.category);
-    }
     const existing = await this.schoolSettingRepository.findByKey(dto.key);
     if (existing) {
       return this.schoolSettingRepository.update(existing._id.toString(), { ...dto, status });
@@ -83,12 +84,17 @@ export class SchoolSettingsService implements OnModuleInit {
   }
 
   async update(id: string, dto: UpdateSchoolSettingDto) {
-    if (dto.status && dto.status.toLowerCase() === 'active') {
-      const current = await this.schoolSettingRepository.findById(id);
+    const current = await this.schoolSettingRepository.findById(id);
+    if (dto.status && dto.status.toLowerCase() === 'active' && current?.key !== 'site_datasource') {
       const cat = dto.category || current?.category;
       await this.schoolSettingRepository.deactivateOthers(id, cat);
     }
-    return this.schoolSettingRepository.update(id, dto);
+    const result = await this.schoolSettingRepository.update(id, dto);
+    const key = current?.key;
+    if (key && key !== 'site_datasource' && dto.value) {
+      await this.syncBrandingToDatasource(key, dto.value);
+    }
+    return result;
   }
 
   async remove(id: string) {
