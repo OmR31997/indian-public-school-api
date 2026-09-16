@@ -63,17 +63,18 @@ export class CloudinaryStorageStrategy implements IStorageStrategy {
               return reject(new Error('Cloudinary upload returned null result'));
             }
             let finalUrl = result.secure_url;
-            if (isPdf && result.public_id) {
-              try {
-                const expiresAt = Math.floor(Date.now() / 1000) + 10 * 365 * 24 * 3600; // 10 years
-                finalUrl = cloudinary.utils.private_download_url(result.public_id, 'pdf', {
-                  resource_type: result.resource_type || 'image',
-                  type: 'upload',
-                  expires_at: expiresAt,
-                });
-                this.logger.log(`Generated signed Cloudinary PDF URL for ${result.public_id}`);
-              } catch (err: any) {
-                this.logger.warn(`Failed to generate signed PDF URL, using secure_url:`, err);
+            if (isPdf && finalUrl && !finalUrl.toLowerCase().endsWith('.pdf')) {
+              // Ensure PDF secure_url has .pdf extension if omitted by public_id
+              const hashIdx = finalUrl.indexOf('#');
+              const queryIdx = finalUrl.indexOf('?');
+              const splitIdx = Math.min(
+                queryIdx !== -1 ? queryIdx : finalUrl.length,
+                hashIdx !== -1 ? hashIdx : finalUrl.length,
+              );
+              const basePath = finalUrl.slice(0, splitIdx);
+              const suffix = finalUrl.slice(splitIdx);
+              if (!basePath.toLowerCase().endsWith('.pdf')) {
+                finalUrl = `${basePath}.pdf${suffix}`;
               }
             }
 
@@ -189,16 +190,10 @@ export class CloudinaryStorageStrategy implements IStorageStrategy {
       const resources = res?.resources || [];
       const expiresAt = Math.floor(Date.now() / 1000) + 10 * 365 * 24 * 3600;
       const formatted = resources.map((r: any) => {
-        let assetUrl = r.secure_url || r.url;
+        let assetUrl = r.secure_url || r.url || '';
         const isPdf = r.format === 'pdf' || (r.public_id || '').toLowerCase().endsWith('.pdf');
-        if (isPdf && r.public_id) {
-          try {
-            assetUrl = cloudinary.utils.private_download_url(r.public_id, 'pdf', {
-              resource_type: r.resource_type || 'image',
-              type: 'upload',
-              expires_at: expiresAt,
-            });
-          } catch {}
+        if (isPdf && assetUrl && !assetUrl.toLowerCase().endsWith('.pdf')) {
+          assetUrl = `${assetUrl}.pdf`;
         }
         return {
           id: r.public_id || r.asset_id,
