@@ -53,9 +53,21 @@ export class UploadsService {
       (!file.mimetype.startsWith('image/') && !file.mimetype.startsWith('video/'));
 
     let targetFolder: string;
-    if (folder) {
-      targetFolder = folder;
-    } else if (album && album !== 'General') {
+    if (folder && folder.trim()) {
+      let rawFolder = folder.trim().replace(/^\/+/, '');
+      if (rawFolder.toLowerCase().startsWith('album/')) {
+        const subFolder = rawFolder.replace(/^album\//i, '');
+        const formattedSub = subFolder ? subFolder.charAt(0).toUpperCase() + subFolder.slice(1) : 'General';
+        targetFolder = `indian-public-school/assets/${formattedSub}`;
+      } else if (rawFolder.toLowerCase().startsWith('indian-public-school/assets/')) {
+        targetFolder = rawFolder;
+      } else if (!rawFolder.includes('/')) {
+        const formattedName = rawFolder.charAt(0).toUpperCase() + rawFolder.slice(1);
+        targetFolder = `indian-public-school/assets/${formattedName}`;
+      } else {
+        targetFolder = rawFolder;
+      }
+    } else if (album && album !== 'General' && album !== 'Galleries' && album !== 'Gallery') {
       targetFolder = `indian-public-school/assets/${album}`;
     } else if (isDoc) {
       targetFolder = `indian-public-school/assets/Documents`;
@@ -79,8 +91,8 @@ export class UploadsService {
     else if (file.mimetype === 'application/pdf') fileType = 'pdf';
 
     const eventType = isDoc ? (album && album !== 'General' ? album : 'Documents') : (album || 'General');
-    const directoryPath = folder
-      ? `/${folder.replace(/^\/+/, '')}`
+    const directoryPath = folder && folder.trim()
+      ? (folder.trim().startsWith('/') ? folder.trim() : `/${folder.trim()}`)
       : isDoc
       ? 'indian-public-school/assets/Documents'
       : `/album/${(album || 'General').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
