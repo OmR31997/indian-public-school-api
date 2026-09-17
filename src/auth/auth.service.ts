@@ -13,6 +13,7 @@ import { UserRepository } from './user.repository';
 import { RegisterDto } from './dto/register.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { User } from './schemas/user.schema';
 import { generatePublicId } from '../common/utils/public-id';
@@ -215,6 +216,26 @@ export class AuthService implements OnModuleInit {
     }
     await this.userRepository.delete(userId);
     return { message: 'User deleted successfully' };
+  }
+
+  async changePassword(userId: string, changePasswordDto: ChangePasswordDto) {
+    const user = await this.userRepository.findById(userId);
+    if (!user) {
+      throw new NotFoundException(`User with ID "${userId}" not found`);
+    }
+
+    const isMatch = await bcrypt.compare(
+      changePasswordDto.currentPassword,
+      user.passwordHash,
+    );
+    if (!isMatch) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    const passwordHash = await bcrypt.hash(changePasswordDto.newPassword, 10);
+    await this.userRepository.update(userId, { passwordHash });
+
+    return { message: 'Password changed successfully' };
   }
 
   private generateToken(

@@ -4,6 +4,7 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
@@ -60,6 +61,17 @@ export class AuthController {
   @ApiOperation({ summary: 'Delete user account (Super Admin accounts are protected)' })
   async deleteUser(@Param('id') id: string) {
     return this.authService.deleteUser(id);
+  }
+
+  @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard)
+  @Post('change-password')
+  @ApiOperation({ summary: 'Change password for currently authenticated user' })
+  async changePassword(
+    @Request() req: any,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(req.user.userId, changePasswordDto);
   }
 }
 
