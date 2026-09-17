@@ -34,11 +34,6 @@ export class PagesService implements OnModuleInit {
       <p style="font-size: 0.95rem; color: #64748b; line-height: 1.6;">To be a benchmark school recognised for academic depth, character development, innovation and inclusive community spirit.</p>
     </div>
   </div>
-</section>
-
-<section style="margin-bottom: 2rem;">
-  <h2 style="font-size: 1.5rem; font-weight: 700; color: #102a4c; margin-bottom: 1rem;">Campus Highlights</h2>
-  <img src="https://res.cloudinary.com/niefrrkx/image/upload/v1789163175/indian-public-school/assets/Home/hero-campus.jpg" alt="Indian Public School Campus" style="width: 100%; max-height: 420px; object-fit: cover; border-radius: 1rem; margin-bottom: 1rem;" />
 </section>`;
 
       const defaults = [
