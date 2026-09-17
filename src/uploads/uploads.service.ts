@@ -4,7 +4,8 @@ import { CloudinaryStorageStrategy } from './strategies/cloudinary-storage.strat
 import { LocalStorageStrategy } from './strategies/local-storage.strategy';
 import { GalleryRepository } from '../gallery/gallery.repository';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
-import { extractCloudinaryPublicId } from './utils/cloudinary-helper';
+import { extractCloudinaryPublicId, formatFileSizeErrorMessage } from './utils/cloudinary-helper';
+import { FileCompressorService } from './services/file-compressor.service';
 
 @Injectable()
 export class UploadsService {
@@ -14,6 +15,7 @@ export class UploadsService {
     private readonly configService: ConfigService,
     private readonly cloudinaryStrategy: CloudinaryStorageStrategy,
     private readonly localStorageStrategy: LocalStorageStrategy,
+    private readonly fileCompressorService: FileCompressorService,
     @Inject(forwardRef(() => GalleryRepository))
     private readonly galleryRepository: GalleryRepository,
   ) {}
@@ -45,12 +47,15 @@ export class UploadsService {
       throw new BadRequestException('No file or empty file buffer provided');
     }
 
+    // Compress file visually losslessly before pushing to storage provider
+    const processedFile = await this.fileCompressorService.compress(file);
+
     const provider = this.configService.get<string>('STORAGE_PROVIDER', 'cloudinary');
 
     const isDoc =
-      file.mimetype === 'application/pdf' ||
-      file.originalname.toLowerCase().endsWith('.pdf') ||
-      (!file.mimetype.startsWith('image/') && !file.mimetype.startsWith('video/'));
+      processedFile.mimetype === 'application/pdf' ||
+      processedFile.originalname.toLowerCase().endsWith('.pdf') ||
+      (!processedFile.mimetype.startsWith('image/') && !processedFile.mimetype.startsWith('video/'));
 
     let targetFolder: string;
     if (folder && folder.trim()) {
@@ -79,16 +84,18 @@ export class UploadsService {
 
     try {
       const strategy = provider === 'cloudinary' ? this.cloudinaryStrategy : this.localStorageStrategy;
-      result = await strategy.uploadFile(file, targetFolder);
+      result = await strategy.uploadFile(processedFile, targetFolder);
     } catch (err: any) {
-      this.logger.error(`Storage provider (${provider}) upload failed for "${file?.originalname}": ${err?.message || err}`);
-      throw new BadRequestException(`Cloudinary upload failed: ${err?.message || err || 'Unknown upload error'}`);
+      const rawMsg = err?.message || err?.error?.message || (typeof err === 'string' ? err : String(err)) || 'Unknown upload error';
+      const formattedMsg = formatFileSizeErrorMessage(rawMsg);
+      this.logger.error(`Storage provider (${provider}) upload failed for "${processedFile?.originalname}": ${formattedMsg}`);
+      throw new BadRequestException(`Cloudinary upload failed: ${formattedMsg}`);
     }
 
     let fileType: 'image' | 'pdf' | 'video' | 'document' = 'document';
-    if (file.mimetype.startsWith('image/')) fileType = 'image';
-    else if (file.mimetype.startsWith('video/')) fileType = 'video';
-    else if (file.mimetype === 'application/pdf') fileType = 'pdf';
+    if (processedFile.mimetype.startsWith('image/')) fileType = 'image';
+    else if (processedFile.mimetype.startsWith('video/')) fileType = 'video';
+    else if (processedFile.mimetype === 'application/pdf') fileType = 'pdf';
 
     const eventType = isDoc ? (album && album !== 'General' ? album : 'Documents') : (album || 'General');
     const directoryPath = folder && folder.trim()
@@ -98,7 +105,7 @@ export class UploadsService {
       : `/album/${(album || 'General').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 
     const asset = await this.galleryRepository.create({
-      eventName: file.originalname,
+      eventName: processedFile.originalname,
       fileUrl: [result.url],
       eventType: eventType,
       directory: directoryPath,

@@ -30,3 +30,49 @@ export function extractCloudinaryPublicId(url: string): string | null {
 
   return null;
 }
+
+/**
+ * Format raw byte numbers strictly into MB format.
+ * Examples:
+ * 10485760 -> "10 MB"
+ * 69974235 -> "66.73 MB"
+ * 524288 -> "0.5 MB"
+ */
+export function formatBytes(bytes: number, decimals: number = 2): string {
+  if (!bytes || isNaN(bytes) || bytes <= 0) return '0 MB';
+
+  const mb = bytes / (1024 * 1024);
+  const dm = decimals < 0 ? 0 : decimals;
+  const num = parseFloat(mb.toFixed(dm));
+
+  return `${num} MB`;
+}
+
+/**
+ * Format file size error messages from Cloudinary or storage providers into human-readable MB units,
+ * preserving the raw server byte count inside brackets.
+ *
+ * Example input:  "File size too large. Got 69974235. Maximum is 10485760."
+ * Example output: "File size too large. Got 66.73 MB (69,974,235 bytes). Maximum is 10 MB (10,485,760 bytes)."
+ */
+export function formatFileSizeErrorMessage(message: string): string {
+  if (!message || typeof message !== 'string') return message;
+
+  // Prevent double formatting if message was already processed
+  if (message.includes('MB (') || message.includes('bytes)')) {
+    return message;
+  }
+
+  // Single-pass replacement targeting raw byte counts (4+ digits) after keywords
+  return message.replace(
+    /\b(Got|Maximum is|max_file_size\s*:?|exceeds)\s*(\d{4,})\b(\s*bytes)?/gi,
+    (match, keyword, rawBytes) => {
+      const bytesNum = parseInt(rawBytes, 10);
+      if (isNaN(bytesNum)) return match;
+
+      const formattedMb = formatBytes(bytesNum);
+      const commaBytes = bytesNum.toLocaleString('en-US');
+      return `${keyword} ${formattedMb} (${commaBytes} bytes)`;
+    },
+  );
+}

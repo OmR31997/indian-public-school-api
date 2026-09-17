@@ -5,6 +5,7 @@ import { Readable } from 'stream';
 import * as fs from 'fs';
 import * as path from 'path';
 import { IStorageStrategy, UploadResult } from './storage-strategy.interface';
+import { formatFileSizeErrorMessage } from '../utils/cloudinary-helper';
 
 @Injectable()
 export class CloudinaryStorageStrategy implements IStorageStrategy {
@@ -75,6 +76,10 @@ export class CloudinaryStorageStrategy implements IStorageStrategy {
           options,
           (error, result) => {
             if (error) {
+              const formattedMsg = formatFileSizeErrorMessage(error.message || String(error));
+              if (typeof error === 'object' && error !== null) {
+                error.message = formattedMsg;
+              }
               return reject(error);
             }
             if (!result) {
