@@ -5,6 +5,7 @@ import { Readable } from 'stream';
 import * as fs from 'fs';
 import * as path from 'path';
 import { IStorageStrategy, UploadResult } from './storage-strategy.interface';
+import { formatFileSizeErrorMessage } from '../utils/cloudinary-helper';
 
 @Injectable()
 export class CloudinaryStorageStrategy implements IStorageStrategy {
@@ -26,6 +27,25 @@ export class CloudinaryStorageStrategy implements IStorageStrategy {
     this.rateLimitUntil = 0;
   }
 
+  private isRateLimitError(err: any): boolean {
+    if (!err) return false;
+    const httpCode = err.http_code || err.error?.http_code || err.status || err.statusCode;
+    if (httpCode === 429 || httpCode === 420) return true;
+
+    const message = (
+      err.message ||
+      err.error?.message ||
+      (typeof err === 'string' ? err : JSON.stringify(err))
+    ).toLowerCase();
+
+    return (
+      message.includes('slow down') ||
+      message.includes('out of processing capacity') ||
+      message.includes('rate limit') ||
+      message.includes('too many requests')
+    );
+  }
+
   async uploadFile(file: Express.Multer.File, folder: string = 'indian-public-school'): Promise<UploadResult> {
     if (!file || !file.buffer || file.buffer.length === 0) {
       throw new BadRequestException('Empty file or missing file buffer provided');
@@ -37,7 +57,7 @@ export class CloudinaryStorageStrategy implements IStorageStrategy {
 
     const isMedia = file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/');
 
-    const doUpload = (resourceType: 'auto' | 'image' | 'raw'): Promise<UploadResult> => {
+    const doUploadSingle = (resourceType: 'auto' | 'image' | 'raw'): Promise<UploadResult> => {
       return new Promise((resolve, reject) => {
         const cleanName = file.originalname.replace(/\.pdf$/i, '').replace(/[^a-zA-Z0-9._-]/g, '_');
         const options: Record<string, any> = {
@@ -56,7 +76,10 @@ export class CloudinaryStorageStrategy implements IStorageStrategy {
           options,
           (error, result) => {
             if (error) {
-              this.logger.error(`Cloudinary upload error (resource_type=${resourceType}, filename=${file.originalname}):`, error);
+              const formattedMsg = formatFileSizeErrorMessage(error.message || String(error));
+              if (typeof error === 'object' && error !== null) {
+                error.message = formattedMsg;
+              }
               return reject(error);
             }
             if (!result) {
@@ -92,32 +115,76 @@ export class CloudinaryStorageStrategy implements IStorageStrategy {
       });
     };
 
+    const doUploadWithRetry = async (
+      resourceType: 'auto' | 'image' | 'raw',
+      maxRetries = 2,
+    ): Promise<UploadResult> => {
+      let lastError: any;
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          return await doUploadSingle(resourceType);
+        } catch (err: any) {
+          lastError = err;
+          if (this.isRateLimitError(err)) {
+            if (attempt < maxRetries) {
+              const delay = (attempt + 1) * 1500;
+              this.logger.warn(
+                `Cloudinary capacity limit reached (resource_type=${resourceType}, filename=${file.originalname}). Retrying in ${delay}ms... (Attempt ${attempt + 1}/${maxRetries})`,
+              );
+              await new Promise((res) => setTimeout(res, delay));
+              continue;
+            }
+          }
+          throw err;
+        }
+      }
+      throw lastError;
+    };
+
     if (isPdf) {
       try {
-        return await doUpload('image');
+        return await doUploadWithRetry('image', 1);
       } catch (err: any) {
-        this.logger.warn(`Cloudinary 'image' upload failed for PDF ${file.originalname} (${err?.message || err}). Retrying with 'auto'...`);
+        const errMsg = err?.message || err?.error?.message || String(err);
+        this.logger.warn(
+          `Cloudinary 'image' upload failed for PDF ${file.originalname} (${errMsg}). Retrying with 'auto'...`,
+        );
+        await new Promise((res) => setTimeout(res, 1000));
         try {
-          return await doUpload('auto');
-        } catch {
-          return await doUpload('raw');
+          return await doUploadWithRetry('auto', 1);
+        } catch (err2: any) {
+          const err2Msg = err2?.message || err2?.error?.message || String(err2);
+          this.logger.warn(
+            `Cloudinary 'auto' upload failed for PDF ${file.originalname} (${err2Msg}). Retrying with 'raw'...`,
+          );
+          await new Promise((res) => setTimeout(res, 1000));
+          return await doUploadWithRetry('raw', 1);
         }
       }
     }
 
     if (!isMedia) {
       try {
-        return await doUpload('raw');
+        return await doUploadWithRetry('raw', 1);
       } catch (err: any) {
-        this.logger.warn(`Cloudinary 'raw' upload failed for ${file.originalname} (${err?.message || err}). Retrying with resource_type='auto'...`);
-        return await doUpload('auto');
+        const errMsg = err?.message || err?.error?.message || String(err);
+        this.logger.warn(
+          `Cloudinary 'raw' upload failed for ${file.originalname} (${errMsg}). Retrying with 'auto'...`,
+        );
+        await new Promise((res) => setTimeout(res, 1000));
+        return await doUploadWithRetry('auto', 1);
       }
     }
 
     try {
-      return await doUpload('auto');
+      return await doUploadWithRetry('auto', 1);
     } catch (err: any) {
-      return await doUpload('image');
+      const errMsg = err?.message || err?.error?.message || String(err);
+      this.logger.warn(
+        `Cloudinary 'auto' upload failed for ${file.originalname} (${errMsg}). Retrying with 'image'...`,
+      );
+      await new Promise((res) => setTimeout(res, 1000));
+      return await doUploadWithRetry('image', 1);
     }
   }
 
@@ -168,7 +235,7 @@ export class CloudinaryStorageStrategy implements IStorageStrategy {
           }
           return await cloudinary.api.resources(options);
         } catch (err: any) {
-          const isRateLimit = err?.error?.http_code === 420 || err?.http_code === 420 || err?.message?.includes('Rate Limit Exceeded');
+          const isRateLimit = this.isRateLimitError(err);
           if (isRateLimit) {
             // Do not retry on rate limit errors
             throw err;
@@ -188,7 +255,6 @@ export class CloudinaryStorageStrategy implements IStorageStrategy {
     try {
       const res = await fetchWithRetry();
       const resources = res?.resources || [];
-      const expiresAt = Math.floor(Date.now() / 1000) + 10 * 365 * 24 * 3600;
       const formatted = resources.map((r: any) => {
         let assetUrl = r.secure_url || r.url || '';
         const isPdf = r.format === 'pdf' || (r.public_id || '').toLowerCase().endsWith('.pdf');
@@ -208,12 +274,12 @@ export class CloudinaryStorageStrategy implements IStorageStrategy {
       this.cache.set(cacheKey, { timestamp: now, data: formatted });
       return formatted;
     } catch (err: any) {
-      const isRateLimit = err?.error?.http_code === 420 || err?.http_code === 420 || err?.message?.includes('Rate Limit Exceeded') || String(err).includes('Rate Limit Exceeded');
+      const isRateLimit = this.isRateLimitError(err);
       
       if (isRateLimit) {
-        // Lockout for 10 minutes on Rate Limit 420
+        // Lockout for 10 minutes on Rate Limit 420/429
         this.rateLimitUntil = now + 10 * 60 * 1000;
-        this.logger.warn(`Cloudinary Admin API 500 ops/hr rate limit reached. Serving cached assets for 10 minutes until rate limit resets.`);
+        this.logger.warn(`Cloudinary Admin API rate limit reached. Serving cached assets for 10 minutes until rate limit resets.`);
       } else {
         const errorDetail = err?.error?.message || err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
         this.logger.warn(`Could not fetch direct Cloudinary resources via Admin API: ${errorDetail}`);
