@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { InquiryStatus } from '../schemas/inquiry.schema';
 
 export class CreateInquiryDto {
@@ -40,6 +40,15 @@ export class CreateInquiryDto {
   @IsOptional()
   @IsEnum(InquiryStatus)
   status?: InquiryStatus;
+
+  @ApiPropertyOptional({
+    example: false,
+    default: false,
+    description: 'Whether the inquiry has been read by admin',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isRead?: boolean;
 
   @ApiPropertyOptional({
     example: ['https://res.cloudinary.com/demo/image/upload/sample.jpg'],

@@ -24,6 +24,7 @@ export class InquiriesService {
     queryDto: PaginationQueryDto = {},
     inquiryType?: string,
     status?: string,
+    isRead?: string | boolean,
   ) {
     const additionalFilter: Record<string, any> = {};
     if (inquiryType) {
@@ -32,12 +33,37 @@ export class InquiriesService {
     if (status) {
       additionalFilter.status = status;
     }
+    if (isRead !== undefined && isRead !== null && isRead !== '') {
+      const boolVal = String(isRead) === 'true';
+      if (boolVal) {
+        additionalFilter.isRead = true;
+      } else {
+        additionalFilter.isRead = { $ne: true };
+      }
+    }
 
     return this.inquiryRepository.findAll(
       queryDto,
       ['name', 'contact', 'email', 'inquiryType', 'message'],
       additionalFilter,
     );
+  }
+
+  async getUnreadNotifications(limit = 10) {
+    const unreadCount = await this.inquiryRepository.countUnread();
+    const recentUnreadResult = await this.inquiryRepository.findAll(
+      { page: 1, limit, sortBy: 'createdAt', sortOrder: 'desc' },
+      [],
+      { isRead: { $ne: true } },
+    );
+    return {
+      unreadCount,
+      items: recentUnreadResult.items,
+    };
+  }
+
+  async markAllAsRead() {
+    return this.inquiryRepository.markAllAsRead();
   }
 
   async findOne(id: string) {

@@ -43,6 +43,9 @@ export class Inquiry {
   })
   status!: string;
 
+  @Prop({ type: Boolean, default: false, index: true })
+  isRead?: boolean;
+
   @Prop({ type: [String], default: [] })
   documents?: string[];
 }
