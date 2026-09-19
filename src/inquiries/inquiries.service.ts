@@ -1,13 +1,20 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, Logger } from '@nestjs/common';
 import { InquiryRepository } from './inquiry.repository';
 import { CreateInquiryDto } from './dto/create-inquiry.dto';
 import { UpdateInquiryDto } from './dto/update-inquiry.dto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { InquiryStatus } from './schemas/inquiry.schema';
+import { UploadsService } from '../uploads/uploads.service';
 
 @Injectable()
 export class InquiriesService {
-  constructor(private readonly inquiryRepository: InquiryRepository) {}
+  private readonly logger = new Logger(InquiriesService.name);
+
+  constructor(
+    private readonly inquiryRepository: InquiryRepository,
+    @Inject(forwardRef(() => UploadsService))
+    private readonly uploadsService: UploadsService,
+  ) {}
 
   async create(createInquiryDto: CreateInquiryDto) {
     return this.inquiryRepository.create(createInquiryDto);
@@ -66,6 +73,41 @@ export class InquiriesService {
   }
 
   async remove(id: string) {
+    try {
+      const inquiry: any = await this.inquiryRepository.findById(id);
+      if (inquiry) {
+        const urlsToDelete = new Set<string>();
+
+        if (inquiry.profileImageUrl) urlsToDelete.add(inquiry.profileImageUrl);
+        if (inquiry.marksheetUrl) urlsToDelete.add(inquiry.marksheetUrl);
+        if (Array.isArray(inquiry.documents)) {
+          inquiry.documents.forEach((d: string) => {
+            if (d && typeof d === 'string') urlsToDelete.add(d);
+          });
+        }
+
+        // Extract URLs embedded in message text
+        if (inquiry.message && typeof inquiry.message === 'string') {
+          const matchedUrls = inquiry.message.match(/https?:\/\/[^\s"'>\)]+/gi) || [];
+          matchedUrls.forEach((url: string) => {
+            if (url.includes('cloudinary') || url.includes('/uploads/')) {
+              urlsToDelete.add(url);
+            }
+          });
+        }
+
+        for (const url of Array.from(urlsToDelete)) {
+          try {
+            await this.uploadsService.deleteFileByUrl(url);
+          } catch (deleteErr) {
+            this.logger.warn(`Failed to delete attached inquiry media ${url}: ${deleteErr}`);
+          }
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`Could not fetch inquiry ${id} for Cloudinary media cleanup: ${err}`);
+    }
+
     return this.inquiryRepository.delete(id);
   }
 

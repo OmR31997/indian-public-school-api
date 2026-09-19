@@ -40,4 +40,12 @@ export class CreateInquiryDto {
   @IsOptional()
   @IsEnum(InquiryStatus)
   status?: InquiryStatus;
+
+  @ApiPropertyOptional({
+    example: ['https://res.cloudinary.com/demo/image/upload/sample.jpg'],
+    description: 'List of uploaded document URLs attached to this inquiry',
+  })
+  @IsOptional()
+  @IsString({ each: true })
+  documents?: string[];
 }
