@@ -42,6 +42,12 @@ export class Inquiry {
     default: InquiryStatus.PENDING,
   })
   status!: string;
+
+  @Prop({ type: Boolean, default: false, index: true })
+  isRead?: boolean;
+
+  @Prop({ type: [String], default: [] })
+  documents?: string[];
 }
 
 export const InquirySchema = SchemaFactory.createForClass(Inquiry);

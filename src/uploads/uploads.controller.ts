@@ -50,6 +50,24 @@ export class UploadsController {
     return this.uploadsService.upload(file, album, altText, folder);
   }
 
+  @Post('public')
+  @ApiOperation({ summary: 'Public upload file for admission applications and forms' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file'))
+  publicUpload(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('album') album?: string,
+    @Body('folder') folder?: string,
+    @Body('altText') altText?: string,
+  ) {
+    return this.uploadsService.upload(
+      file,
+      album || 'AdmissionDocuments',
+      altText,
+      folder || 'indian-public-school/assets/AdmissionDocuments',
+    );
+  }
+
   @Get('cloudinary-resources')
   @ApiOperation({ summary: 'List direct Cloudinary CDN storage resources' })
   @ApiQuery({ name: 'folder', required: false, type: String, description: 'Filter Cloudinary assets by folder path' })

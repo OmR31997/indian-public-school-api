@@ -1,13 +1,20 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, Logger } from '@nestjs/common';
 import { InquiryRepository } from './inquiry.repository';
 import { CreateInquiryDto } from './dto/create-inquiry.dto';
 import { UpdateInquiryDto } from './dto/update-inquiry.dto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { InquiryStatus } from './schemas/inquiry.schema';
+import { UploadsService } from '../uploads/uploads.service';
 
 @Injectable()
 export class InquiriesService {
-  constructor(private readonly inquiryRepository: InquiryRepository) {}
+  private readonly logger = new Logger(InquiriesService.name);
+
+  constructor(
+    private readonly inquiryRepository: InquiryRepository,
+    @Inject(forwardRef(() => UploadsService))
+    private readonly uploadsService: UploadsService,
+  ) {}
 
   async create(createInquiryDto: CreateInquiryDto) {
     return this.inquiryRepository.create(createInquiryDto);
@@ -17,6 +24,7 @@ export class InquiriesService {
     queryDto: PaginationQueryDto = {},
     inquiryType?: string,
     status?: string,
+    isRead?: string | boolean,
   ) {
     const additionalFilter: Record<string, any> = {};
     if (inquiryType) {
@@ -25,12 +33,37 @@ export class InquiriesService {
     if (status) {
       additionalFilter.status = status;
     }
+    if (isRead !== undefined && isRead !== null && isRead !== '') {
+      const boolVal = String(isRead) === 'true';
+      if (boolVal) {
+        additionalFilter.isRead = true;
+      } else {
+        additionalFilter.isRead = { $ne: true };
+      }
+    }
 
     return this.inquiryRepository.findAll(
       queryDto,
       ['name', 'contact', 'email', 'inquiryType', 'message'],
       additionalFilter,
     );
+  }
+
+  async getUnreadNotifications(limit = 10) {
+    const unreadCount = await this.inquiryRepository.countUnread();
+    const recentUnreadResult = await this.inquiryRepository.findAll(
+      { page: 1, limit, sortBy: 'createdAt', sortOrder: 'desc' },
+      [],
+      { isRead: { $ne: true } },
+    );
+    return {
+      unreadCount,
+      items: recentUnreadResult.items,
+    };
+  }
+
+  async markAllAsRead() {
+    return this.inquiryRepository.markAllAsRead();
   }
 
   async findOne(id: string) {
@@ -66,6 +99,41 @@ export class InquiriesService {
   }
 
   async remove(id: string) {
+    try {
+      const inquiry: any = await this.inquiryRepository.findById(id);
+      if (inquiry) {
+        const urlsToDelete = new Set<string>();
+
+        if (inquiry.profileImageUrl) urlsToDelete.add(inquiry.profileImageUrl);
+        if (inquiry.marksheetUrl) urlsToDelete.add(inquiry.marksheetUrl);
+        if (Array.isArray(inquiry.documents)) {
+          inquiry.documents.forEach((d: string) => {
+            if (d && typeof d === 'string') urlsToDelete.add(d);
+          });
+        }
+
+        // Extract URLs embedded in message text
+        if (inquiry.message && typeof inquiry.message === 'string') {
+          const matchedUrls = inquiry.message.match(/https?:\/\/[^\s"'>\)]+/gi) || [];
+          matchedUrls.forEach((url: string) => {
+            if (url.includes('cloudinary') || url.includes('/uploads/')) {
+              urlsToDelete.add(url);
+            }
+          });
+        }
+
+        for (const url of Array.from(urlsToDelete)) {
+          try {
+            await this.uploadsService.deleteFileByUrl(url);
+          } catch (deleteErr) {
+            this.logger.warn(`Failed to delete attached inquiry media ${url}: ${deleteErr}`);
+          }
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`Could not fetch inquiry ${id} for Cloudinary media cleanup: ${err}`);
+    }
+
     return this.inquiryRepository.delete(id);
   }
 
