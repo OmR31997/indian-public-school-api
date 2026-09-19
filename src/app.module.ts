@@ -16,6 +16,7 @@ import { InquiriesModule } from './inquiries/inquiries.module';
 import { NewsModule } from './news/news.module';
 import { RegardingModule } from './regarding/regarding.module';
 import { PagesModule } from './pages/pages.module';
+import { CareersModule } from './careers/careers.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { PagesModule } from './pages/pages.module';
     NewsModule,
     RegardingModule,
     PagesModule,
+    CareersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
