@@ -42,15 +42,6 @@ export class CreateInquiryDto {
   status?: InquiryStatus;
 
   @ApiPropertyOptional({
-    example: false,
-    default: false,
-    description: 'Whether the inquiry has been read by admin',
-  })
-  @IsOptional()
-  @IsBoolean()
-  isRead?: boolean;
-
-  @ApiPropertyOptional({
     example: ['https://res.cloudinary.com/demo/image/upload/sample.jpg'],
     description: 'List of uploaded document URLs attached to this inquiry',
   })

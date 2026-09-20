@@ -1,4 +1,5 @@
 import { Injectable, Inject, forwardRef, Logger } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InquiryRepository } from './inquiry.repository';
 import { CreateInquiryDto } from './dto/create-inquiry.dto';
 import { UpdateInquiryDto } from './dto/update-inquiry.dto';
@@ -12,19 +13,31 @@ export class InquiriesService {
 
   constructor(
     private readonly inquiryRepository: InquiryRepository,
+    private readonly eventEmitter: EventEmitter2,
     @Inject(forwardRef(() => UploadsService))
     private readonly uploadsService: UploadsService,
   ) {}
 
   async create(createInquiryDto: CreateInquiryDto) {
-    return this.inquiryRepository.create(createInquiryDto);
+    const createdInquiry: any = await this.inquiryRepository.create(createInquiryDto);
+
+    // Emit event for notification service
+    this.eventEmitter.emit('inquiry.created', {
+      inquiryId: createdInquiry._id ? createdInquiry._id.toString() : createdInquiry.publicId,
+      name: createdInquiry.name,
+      email: createdInquiry.email,
+      contact: createdInquiry.contact,
+      inquiryType: createdInquiry.inquiryType,
+      message: createdInquiry.message,
+    });
+
+    return createdInquiry;
   }
 
   async findAll(
     queryDto: PaginationQueryDto = {},
     inquiryType?: string,
     status?: string,
-    isRead?: string | boolean,
   ) {
     const additionalFilter: Record<string, any> = {};
     if (inquiryType) {
@@ -33,37 +46,12 @@ export class InquiriesService {
     if (status) {
       additionalFilter.status = status;
     }
-    if (isRead !== undefined && isRead !== null && isRead !== '') {
-      const boolVal = String(isRead) === 'true';
-      if (boolVal) {
-        additionalFilter.isRead = true;
-      } else {
-        additionalFilter.isRead = { $ne: true };
-      }
-    }
 
     return this.inquiryRepository.findAll(
       queryDto,
       ['name', 'contact', 'email', 'inquiryType', 'message'],
       additionalFilter,
     );
-  }
-
-  async getUnreadNotifications(limit = 10) {
-    const unreadCount = await this.inquiryRepository.countUnread();
-    const recentUnreadResult = await this.inquiryRepository.findAll(
-      { page: 1, limit, sortBy: 'createdAt', sortOrder: 'desc' },
-      [],
-      { isRead: { $ne: true } },
-    );
-    return {
-      unreadCount,
-      items: recentUnreadResult.items,
-    };
-  }
-
-  async markAllAsRead() {
-    return this.inquiryRepository.markAllAsRead();
   }
 
   async findOne(id: string) {

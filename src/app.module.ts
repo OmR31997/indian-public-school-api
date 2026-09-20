@@ -18,11 +18,15 @@ import { RegardingModule } from './regarding/regarding.module';
 import { PagesModule } from './pages/pages.module';
 import { CareersModule } from './careers/careers.module';
 
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { NotificationsModule } from './notifications/notifications.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    EventEmitterModule.forRoot(),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -47,9 +51,10 @@ import { CareersModule } from './careers/careers.module';
     RegardingModule,
     PagesModule,
     CareersModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }
 
