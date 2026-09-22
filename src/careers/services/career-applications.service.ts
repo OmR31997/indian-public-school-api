@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CareerApplicationRepository } from '../repositories/career-application.repository';
 import { CareerPostRepository } from '../repositories/career-post.repository';
 import { ApplyCareerDto } from '../dto/apply-career.dto';
@@ -15,6 +16,7 @@ export class CareerApplicationsService {
     private readonly careerApplicationRepository: CareerApplicationRepository,
     private readonly careerPostRepository: CareerPostRepository,
     private readonly uploadsService: UploadsService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   private generateApplicationNo(): string {
@@ -36,11 +38,21 @@ export class CareerApplicationsService {
 
     const applicationNo = this.generateApplicationNo();
 
-    const applicationRecord = await this.careerApplicationRepository.create({
+    const applicationRecord: any = await this.careerApplicationRepository.create({
       ...applyCareerDto,
       postTitle: post.title,
       applicationNo,
       isRead: false,
+    });
+
+    // Emit event for notification service
+    this.eventEmitter.emit('career_application.created', {
+      applicationId: applicationRecord._id ? applicationRecord._id.toString() : applicationRecord.id,
+      applicationNo: applicationRecord.applicationNo,
+      postTitle: applicationRecord.postTitle,
+      fullName: applicationRecord.fullName,
+      email: applicationRecord.email,
+      phone: applicationRecord.phone,
     });
 
     return applicationRecord;
