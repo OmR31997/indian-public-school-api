@@ -16,12 +16,17 @@ import { InquiriesModule } from './inquiries/inquiries.module';
 import { NewsModule } from './news/news.module';
 import { RegardingModule } from './regarding/regarding.module';
 import { PagesModule } from './pages/pages.module';
+import { CareersModule } from './careers/careers.module';
+
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    EventEmitterModule.forRoot(),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -45,9 +50,11 @@ import { PagesModule } from './pages/pages.module';
     NewsModule,
     RegardingModule,
     PagesModule,
+    CareersModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }
 

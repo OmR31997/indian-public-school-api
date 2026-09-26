@@ -38,21 +38,12 @@ export class InquiriesController {
   @ApiOperation({ summary: 'List inquiry records with pagination and search' })
   @ApiQuery({ name: 'inquiryType', required: false, type: String, description: 'Filter by inquiry type (Admission, Transport, Fee Structure, etc.)' })
   @ApiQuery({ name: 'status', required: false, enum: InquiryStatus, description: 'Filter by status' })
-  @ApiQuery({ name: 'isRead', required: false, type: Boolean, description: 'Filter by read status (true or false)' })
   findAll(
     @Query() queryDto: PaginationQueryDto = {},
     @Query('inquiryType') inquiryType?: string,
     @Query('status') status?: string,
-    @Query('isRead') isRead?: string,
   ) {
-    return this.inquiriesService.findAll(queryDto, inquiryType, status, isRead);
-  }
-
-  @Get('notifications/unread')
-  @ApiOperation({ summary: 'Get unread inquiry notification count and recent items' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Limit number of recent items returned' })
-  getUnreadNotifications(@Query('limit') limit?: number) {
-    return this.inquiriesService.getUnreadNotifications(limit ? Number(limit) : 10);
+    return this.inquiriesService.findAll(queryDto, inquiryType, status);
   }
 
   @Get('track')
@@ -60,14 +51,6 @@ export class InquiriesController {
   @ApiQuery({ name: 'query', required: true, type: String, description: 'Email address, contact phone number, or submission ID' })
   track(@Query('query') query: string) {
     return this.inquiriesService.trackInquiry(query);
-  }
-
-  @ApiBearerAuth('JWT-auth')
-  @UseGuards(JwtAuthGuard)
-  @Patch('mark-all-read')
-  @ApiOperation({ summary: 'Mark all unread inquiry records as read' })
-  markAllAsRead() {
-    return this.inquiriesService.markAllAsRead();
   }
 
   @Get(':id')
