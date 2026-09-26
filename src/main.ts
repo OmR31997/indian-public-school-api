@@ -62,7 +62,7 @@ async function bootstrap() {
 
   const port = process.env.PORT || 5000;
   await app.listen(port, '0.0.0.0');
-  console.log(`🚀 Indian Public School API is running on: http://localhost:${port}/api`);
-  console.log(`📚 Swagger Documentation is available at: http://localhost:${port}/docs`);
+  console.log(`Indian Public School API is running on: http://localhost:${port}/api`);
+  console.log(`Swagger Documentation is available at: http://localhost:${port}/docs`);
 }
 bootstrap();
