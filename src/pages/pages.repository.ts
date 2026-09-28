@@ -32,6 +32,14 @@ export class PagesRepository extends BaseRepository<PageDocument> {
       })
       .exec();
   }
+
+  async findPublishedAll(): Promise<PageDocument[]> {
+    return this.pageModel
+      .find({ isPublished: { $ne: false } })
+      .sort({ order: 1, title: 1 })
+      .lean()
+      .exec() as unknown as PageDocument[];
+  }
 }
 
 

@@ -63,7 +63,7 @@ export abstract class BaseRepository<
       queryConditions.length > 0 ? { $and: queryConditions } : {};
 
     const pageNum = Math.max(1, Number(page) || 1);
-    const limitNum = Math.max(1, Math.min(100, Number(limit) || 10));
+    const limitNum = Math.max(1, Math.min(1000, Number(limit) || 10));
     const skip = (pageNum - 1) * limitNum;
 
     const sortDirection =

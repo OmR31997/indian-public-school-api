@@ -126,7 +126,24 @@ export class PagesService implements OnModuleInit {
     }
   }
 
+  async findPublishedAll() {
+    return this.pagesRepository.findPublishedAll();
+  }
+
   async findAll(queryDto: PaginationQueryDto = {}) {
+    if (String((queryDto as any).all).toLowerCase() === 'true' || String((queryDto as any).limit).toLowerCase() === 'all') {
+      const items = await this.pagesRepository.findPublishedAll();
+      return {
+        items,
+        total: items.length,
+        page: 1,
+        limit: items.length,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPrevPage: false,
+      };
+    }
+
     const additionalFilter: Record<string, any> = {};
 
     const isPubParam = (queryDto as any).isPublished;
