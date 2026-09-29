@@ -7,8 +7,13 @@ import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
+import { json, urlencoded } from 'express';
+
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ extended: true, limit: '50mb' }));
 
   app.enableCors({
     origin: [
@@ -62,7 +67,7 @@ async function bootstrap() {
 
   const port = process.env.PORT || 5000;
   await app.listen(port, '0.0.0.0');
-  console.log(`🚀 Indian Public School API is running on: http://localhost:${port}/api`);
-  console.log(`📚 Swagger Documentation is available at: http://localhost:${port}/docs`);
+  console.log(`Indian Public School API is running on: http://localhost:${port}/api`);
+  console.log(`Swagger Documentation is available at: http://localhost:${port}/docs`);
 }
 bootstrap();

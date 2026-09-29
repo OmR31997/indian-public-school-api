@@ -105,10 +105,11 @@ export abstract class BaseRepository<
 
   async update(id: string, updateDto: any): Promise<T> {
     const filter = isObjectId(id) ? { _id: id } : { publicId: id };
+    const { _id, id: _dummyId, createdAt, updatedAt, __v, ...cleanDto } = updateDto || {};
     const updatedEntity = await this.model
-      .findOneAndUpdate(filter, updateDto, {
+      .findOneAndUpdate(filter, cleanDto, {
         returnDocument: 'after',
-        runValidators: true,
+        runValidators: false,
       })
       .lean()
       .exec();
