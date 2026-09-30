@@ -17,6 +17,7 @@ import { NewsModule } from './news/news.module';
 import { RegardingModule } from './regarding/regarding.module';
 import { PagesModule } from './pages/pages.module';
 import { CareersModule } from './careers/careers.module';
+import { ThemeModule } from './theme/theme.module';
 
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { NotificationsModule } from './notifications/notifications.module';
@@ -51,6 +52,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     RegardingModule,
     PagesModule,
     CareersModule,
+    ThemeModule,
     NotificationsModule,
   ],
   controllers: [AppController],
