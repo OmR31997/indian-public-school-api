@@ -69,7 +69,7 @@ export class ThemeColors {
 }
 
 export class ThemeTypography {
-  @Prop({ default: '"Fraunces", ui-serif, Georgia, serif' })
+  @Prop({ default: '"Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif' })
   fontDisplay: string;
 
   @Prop({ default: '"Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif' })

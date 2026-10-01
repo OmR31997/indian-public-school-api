@@ -33,7 +33,7 @@ export const DEFAULT_PRESET_THEMES = [
       gradientNavy: 'linear-gradient(140deg, oklch(0.22 0.06 266), oklch(0.45 0.12 247.7))',
     },
     typography: {
-      fontDisplay: '"Fraunces", ui-serif, Georgia, serif',
+      fontDisplay: '"Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif',
       fontSans: '"Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif',
       baseFontSize: '16px',
     },
@@ -178,28 +178,59 @@ export class ThemeService implements OnModuleInit {
 
   async sanitizeActiveThemes(): Promise<void> {
     const all = await this.themeRepository.findAllRaw();
-    // Default missing portal fields to 'web'
-    for (const t of all) {
-      if (!t.portal) {
-        await this.themeRepository.update(t._id.toString(), { portal: 'web' } as any);
-        t.portal = 'web';
+
+    // 1. Remove old duplicate preset themes named "Classic Navy & Gold" or with slug "classic-navy-gold"
+    const classicThemes = all.filter(t => t.isPreset && (t.slug === 'classic-navy-gold' || t.name === 'Classic Navy & Gold'));
+    if (classicThemes.length > 1) {
+      classicThemes.sort((a, b) => {
+        const aIsModern = a.typography?.fontDisplay?.includes('Plus Jakarta Sans') ? 1 : 0;
+        const bIsModern = b.typography?.fontDisplay?.includes('Plus Jakarta Sans') ? 1 : 0;
+        if (aIsModern !== bIsModern) return bIsModern - aIsModern;
+        if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+        return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
+      });
+      for (let i = 1; i < classicThemes.length; i++) {
+        try {
+          await this.themeRepository.delete(classicThemes[i]._id.toString());
+        } catch (e) {}
       }
     }
-    const webActive = all.filter(t => t.isActive && (t.portal === 'web' || t.portal === 'both'));
+
+    // 2. Sanitize legacy Fraunces/Georgia fonts on all existing database themes
+    const current = await this.themeRepository.findAllRaw();
+    for (const t of current) {
+      let updated = false;
+      const updateData: any = {};
+
+      if (!t.portal) {
+        updateData.portal = 'web';
+        updated = true;
+      }
+
+      if (t.typography && t.typography.fontDisplay && (
+        t.typography.fontDisplay.includes('Fraunces') ||
+        t.typography.fontDisplay.includes('Georgia') ||
+        t.typography.fontDisplay.includes('ui-serif')
+      )) {
+        updateData.typography = {
+          ...t.typography,
+          fontDisplay: '"Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif',
+        };
+        updated = true;
+      }
+
+      if (updated) {
+        await this.themeRepository.update(t._id.toString(), updateData);
+      }
+    }
+
+    // 3. Ensure single active theme per portal
+    const refreshed = await this.themeRepository.findAllRaw();
+    const webActive = refreshed.filter(t => t.isActive && (t.portal === 'web' || t.portal === 'both'));
     if (webActive.length > 1) {
       webActive.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
       const toKeep = webActive[0];
       for (const theme of webActive) {
-        if (theme._id.toString() !== toKeep._id.toString()) {
-          await this.themeRepository.update(theme._id.toString(), { isActive: false } as any);
-        }
-      }
-    }
-    const adminActive = all.filter(t => t.isActive && t.portal === 'admin');
-    if (adminActive.length > 1) {
-      adminActive.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
-      const toKeep = adminActive[0];
-      for (const theme of adminActive) {
         if (theme._id.toString() !== toKeep._id.toString()) {
           await this.themeRepository.update(theme._id.toString(), { isActive: false } as any);
         }
