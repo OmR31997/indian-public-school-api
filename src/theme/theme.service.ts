@@ -49,6 +49,7 @@ export const DEFAULT_PRESET_THEMES = [
     name: 'Royal Emerald',
     slug: 'royal-emerald',
     description: 'Vibrant educational theme with deep royal emerald green, rich gold, and mint fresh accents.',
+    portal: 'web',
     isPreset: true,
     isActive: false,
     colors: {
@@ -88,6 +89,7 @@ export const DEFAULT_PRESET_THEMES = [
     name: 'Sunset Crimson & Amber',
     slug: 'sunset-crimson-amber',
     description: 'Warm regal academic palette featuring crimson red, amber orange, and warm parchment background.',
+    portal: 'web',
     isPreset: true,
     isActive: false,
     colors: {
@@ -127,6 +129,7 @@ export const DEFAULT_PRESET_THEMES = [
     name: 'Cyber Dark Sapphire',
     slug: 'cyber-dark-sapphire',
     description: 'Sleek dark mode theme with glowing cyan, ice blue, and dark sapphire glass surfaces.',
+    portal: 'web',
     isPreset: true,
     isActive: false,
     colors: {
@@ -170,6 +173,38 @@ export class ThemeService implements OnModuleInit {
 
   async onModuleInit() {
     await this.seedPresetsIfEmpty();
+    await this.sanitizeActiveThemes();
+  }
+
+  async sanitizeActiveThemes(): Promise<void> {
+    const all = await this.themeRepository.findAllRaw();
+    // Default missing portal fields to 'web'
+    for (const t of all) {
+      if (!t.portal) {
+        await this.themeRepository.update(t._id.toString(), { portal: 'web' } as any);
+        t.portal = 'web';
+      }
+    }
+    const webActive = all.filter(t => t.isActive && (t.portal === 'web' || t.portal === 'both'));
+    if (webActive.length > 1) {
+      webActive.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+      const toKeep = webActive[0];
+      for (const theme of webActive) {
+        if (theme._id.toString() !== toKeep._id.toString()) {
+          await this.themeRepository.update(theme._id.toString(), { isActive: false } as any);
+        }
+      }
+    }
+    const adminActive = all.filter(t => t.isActive && t.portal === 'admin');
+    if (adminActive.length > 1) {
+      adminActive.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+      const toKeep = adminActive[0];
+      for (const theme of adminActive) {
+        if (theme._id.toString() !== toKeep._id.toString()) {
+          await this.themeRepository.update(theme._id.toString(), { isActive: false } as any);
+        }
+      }
+    }
   }
 
   async seedPresetsIfEmpty(): Promise<void> {
@@ -181,15 +216,18 @@ export class ThemeService implements OnModuleInit {
     }
   }
 
-  async getActiveTheme(): Promise<ThemeDocument> {
-    let active = await this.themeRepository.findActive();
+  async getActiveTheme(portal?: string): Promise<ThemeDocument> {
+    let active = await this.themeRepository.findActive(portal);
     if (!active) {
       const all = await this.themeRepository.findAllRaw();
-      if (all.length > 0) {
-        active = all[0];
-      } else {
+      if (portal) {
+        active = all.find(t => t.isActive && (t.portal === portal || t.portal === 'both')) || null;
+      }
+      if (!active && all.length > 0) {
+        active = all.find(t => t.portal === portal || t.portal === 'both') || all[0];
+      } else if (!active) {
         await this.seedPresetsIfEmpty();
-        active = await this.themeRepository.findActive();
+        active = await this.themeRepository.findActive(portal);
       }
     }
     if (!active) {
@@ -199,6 +237,7 @@ export class ThemeService implements OnModuleInit {
   }
 
   async findAll(): Promise<ThemeDocument[]> {
+    await this.sanitizeActiveThemes();
     return this.themeRepository.findAllRaw();
   }
 
@@ -222,14 +261,15 @@ export class ThemeService implements OnModuleInit {
       slug = `${baseSlug}-${counter++}`;
     }
 
+    const targetPortal = dto.portal || 'web';
     if (dto.isActive) {
-      await this.themeRepository.deactivateAll();
+      await this.themeRepository.deactivateForPortal(targetPortal);
     }
 
     return this.themeRepository.create({
       ...dto,
       slug,
-      portal: dto.portal || 'web',
+      portal: targetPortal,
       isPreset: dto.isPreset ?? false,
       isActive: dto.isActive ?? false,
     } as any);
@@ -238,8 +278,9 @@ export class ThemeService implements OnModuleInit {
   async update(id: string, dto: UpdateThemeDto): Promise<ThemeDocument> {
     const theme = await this.findOne(id);
 
-    if (dto.isActive && !theme.isActive) {
-      await this.themeRepository.deactivateAll();
+    const targetPortal = dto.portal || theme.portal || 'web';
+    if (dto.isActive) {
+      await this.themeRepository.deactivateForPortal(targetPortal);
     }
 
     if (dto.name || dto.slug) {
@@ -267,8 +308,10 @@ export class ThemeService implements OnModuleInit {
 
   async activate(id: string): Promise<ThemeDocument> {
     const theme = await this.findOne(id);
-    await this.themeRepository.deactivateAll();
+    const portal = theme.portal || 'web';
+    await this.themeRepository.deactivateForPortal(portal);
     const activated = await this.themeRepository.update(id, { isActive: true } as any);
+    await this.sanitizeActiveThemes();
     return activated;
   }
 

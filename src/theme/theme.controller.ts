@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { ThemeService } from './theme.service';
 import { CreateThemeDto } from './dto/create-theme.dto';
@@ -20,9 +21,9 @@ export class ThemeController {
   constructor(private readonly themeService: ThemeService) {}
 
   @Get('active')
-  @ApiOperation({ summary: 'Get currently active theme configuration for public web UI' })
-  getActiveTheme() {
-    return this.themeService.getActiveTheme();
+  @ApiOperation({ summary: 'Get currently active theme configuration for public web UI or admin panel' })
+  getActiveTheme(@Query('portal') portal?: string) {
+    return this.themeService.getActiveTheme(portal);
   }
 
   @Get()
