@@ -126,23 +126,56 @@ export class PagesService implements OnModuleInit {
     }
   }
 
+  async findPublishedAll() {
+    return this.pagesRepository.findPublishedAll();
+  }
+
   async findAll(queryDto: PaginationQueryDto = {}) {
+    if (String((queryDto as any).all).toLowerCase() === 'true' || String((queryDto as any).limit).toLowerCase() === 'all') {
+      const items = await this.pagesRepository.findPublishedAll();
+      return {
+        items,
+        total: items.length,
+        page: 1,
+        limit: items.length,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPrevPage: false,
+      };
+    }
+
     const additionalFilter: Record<string, any> = {};
 
     const isPubParam = (queryDto as any).isPublished;
     const filterKey = (queryDto as any).filterKey;
     const filterValue = (queryDto as any).filterValue;
 
-    if (isPubParam !== undefined && isPubParam !== '') {
-      additionalFilter.isPublished = String(isPubParam) === 'true' || String(isPubParam) === '1';
-    } else if (filterKey === 'isPublished' && filterValue && filterValue !== 'All') {
-      additionalFilter.isPublished = String(filterValue).toLowerCase() === 'published';
-    } else if (filterValue && (String(filterValue).toLowerCase() === 'published' || String(filterValue).toLowerCase() === 'draft')) {
-      additionalFilter.isPublished = String(filterValue).toLowerCase() === 'published';
+    const rawStatus =
+      isPubParam !== undefined && isPubParam !== ''
+        ? isPubParam
+        : filterKey === 'isPublished'
+        ? filterValue
+        : filterValue !== 'All'
+        ? filterValue
+        : undefined;
+
+    if (rawStatus !== undefined && rawStatus !== '' && rawStatus !== 'All') {
+      const lower = String(rawStatus).toLowerCase();
+      if (lower === 'published' || lower === 'true' || lower === '1') {
+        additionalFilter.isPublished = true;
+      } else if (lower === 'draft' || lower === 'false' || lower === '0') {
+        additionalFilter.isPublished = false;
+      }
+    }
+
+    const effectiveQuery = { ...queryDto };
+    if (!effectiveQuery.sortBy && !effectiveQuery.search) {
+      effectiveQuery.sortBy = 'order';
+      effectiveQuery.sortOrder = 'asc';
     }
 
     return this.pagesRepository.findAll(
-      queryDto,
+      effectiveQuery,
       ['title', 'slug', 'targetUrl', 'textContent'],
       additionalFilter,
     );

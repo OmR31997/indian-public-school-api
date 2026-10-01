@@ -57,9 +57,22 @@ export class UploadsService {
       processedFile.originalname.toLowerCase().endsWith('.pdf') ||
       (!processedFile.mimetype.startsWith('image/') && !processedFile.mimetype.startsWith('video/'));
 
+    const rawFolderInput = (folder || '').trim();
+    const rawAlbumInput = (album || '').trim();
+    const lowerFolder = rawFolderInput.toLowerCase();
+    const lowerAlbum = rawAlbumInput.toLowerCase();
+
+    const isSettingsUpload =
+      lowerFolder.includes('settings') ||
+      lowerAlbum.includes('settings') ||
+      lowerFolder.includes('school-settings') ||
+      lowerAlbum.includes('school-settings');
+
     let targetFolder: string;
-    if (folder && folder.trim()) {
-      let rawFolder = folder.trim().replace(/^\/+/, '');
+    if (isSettingsUpload) {
+      targetFolder = 'indian-public-school/assets/Settings';
+    } else if (rawFolderInput) {
+      let rawFolder = rawFolderInput.replace(/^\/+/, '');
       if (rawFolder.toLowerCase().startsWith('album/')) {
         const subFolder = rawFolder.replace(/^album\//i, '');
         const formattedSub = subFolder ? subFolder.charAt(0).toUpperCase() + subFolder.slice(1) : 'General';
@@ -97,15 +110,24 @@ export class UploadsService {
     else if (processedFile.mimetype.startsWith('video/')) fileType = 'video';
     else if (processedFile.mimetype === 'application/pdf') fileType = 'pdf';
 
-    const eventType = isDoc ? (album && album !== 'General' ? album : 'Documents') : (album || 'General');
-    const directoryPath = folder && folder.trim()
+    const eventType = isSettingsUpload
+      ? 'Settings'
+      : isDoc
+      ? (album && album !== 'General' ? album : 'Documents')
+      : (album || 'General');
+
+    const directoryPath = isSettingsUpload
+      ? 'indian-public-school/assets/Settings'
+      : folder && folder.trim()
       ? (folder.trim().startsWith('/') ? folder.trim() : `/${folder.trim()}`)
       : isDoc
       ? 'indian-public-school/assets/Documents'
       : `/album/${(album || 'General').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 
+    const computedEventName = altText && altText.trim() ? altText.trim() : eventType;
+
     const asset = await this.galleryRepository.create({
-      eventName: processedFile.originalname,
+      eventName: computedEventName,
       fileUrl: [result.url],
       eventType: eventType,
       directory: directoryPath,

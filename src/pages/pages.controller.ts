@@ -37,6 +37,12 @@ export class PagesController {
     return this.pagesService.findAll(queryDto);
   }
 
+  @Get('published')
+  @ApiOperation({ summary: 'Get all published pages without pagination' })
+  findPublishedAll() {
+    return this.pagesService.findPublishedAll();
+  }
+
   @Get('slug/:slug')
   @ApiOperation({ summary: 'Get a page by slug' })
   findBySlug(@Param('slug') slug: string) {

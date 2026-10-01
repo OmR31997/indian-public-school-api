@@ -144,7 +144,7 @@ export class GalleryService {
           _id: `cdn-${res.id || idx}`,
           id: `cdn-${res.id || idx}`,
           publicId: res.id || `cdn-${idx}`,
-          eventName: res.title || `Cloudinary Asset #${idx + 1}`,
+          eventName: res.title || cat,
           eventType: cat,
           directory: dirPath,
           fileUrl: [res.url],
