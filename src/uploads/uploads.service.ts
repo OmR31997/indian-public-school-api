@@ -6,6 +6,7 @@ import { GalleryRepository } from '../gallery/gallery.repository';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { extractCloudinaryPublicId, formatFileSizeErrorMessage } from './utils/cloudinary-helper';
 import { FileCompressorService } from './services/file-compressor.service';
+import { toRelativeMediaPath } from '../common/config';
 
 @Injectable()
 export class UploadsService {
@@ -126,9 +127,11 @@ export class UploadsService {
 
     const computedEventName = altText && altText.trim() ? altText.trim() : eventType;
 
+    const relativeUrl = toRelativeMediaPath(result.url, this.configService) as string;
+
     const asset = await this.galleryRepository.create({
       eventName: computedEventName,
-      fileUrl: [result.url],
+      fileUrl: [relativeUrl],
       eventType: eventType,
       directory: directoryPath,
     });
@@ -137,8 +140,8 @@ export class UploadsService {
 
     return {
       ...plainAsset,
-      url: result.url,
-      fileUrl: asset.fileUrl || [result.url],
+      url: relativeUrl,
+      fileUrl: asset.fileUrl || [relativeUrl],
       key: result.key,
       provider: result.provider,
     };

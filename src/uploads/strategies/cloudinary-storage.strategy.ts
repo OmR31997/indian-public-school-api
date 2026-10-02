@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { IStorageStrategy, UploadResult } from './storage-strategy.interface';
 import { formatFileSizeErrorMessage } from '../utils/cloudinary-helper';
+import { toRelativeMediaPath } from '../../common/config';
 
 @Injectable()
 export class CloudinaryStorageStrategy implements IStorageStrategy {
@@ -101,9 +102,11 @@ export class CloudinaryStorageStrategy implements IStorageStrategy {
               }
             }
 
+            const relativePath = toRelativeMediaPath(finalUrl, this.configService) as string;
+
             this.invalidateCache();
             resolve({
-              url: finalUrl,
+              url: relativePath,
               key: result.public_id,
               provider: 'cloudinary',
             });
