@@ -2,7 +2,7 @@ import { ConfigService } from '@nestjs/config';
 
 /**
  * Returns the base URL prefix for media assets without a trailing slash.
- * Default: https://res.cloudinary.com/niefrrkx
+ * Default: https://res.cloudinary.com/niefrrkx/ips-education/assets
  */
 export function getMediaBaseUrl(configService?: ConfigService): string {
   const envUrl =
@@ -18,13 +18,67 @@ export function getMediaBaseUrl(configService?: ConfigService): string {
     process.env.CLOUDINARY_CLOUD_NAME ||
     'niefrrkx';
 
-  return `https://res.cloudinary.com/${cloudName.trim()}`;
+  const rootFolder = getCloudinaryRootFolder(configService);
+
+  return `https://res.cloudinary.com/${cloudName.trim()}/${rootFolder}/assets`;
 }
 
 /**
- * Strips the media host / Cloudinary prefix from a full URL to store a relative path in DB.
- * E.g., "https://res.cloudinary.com/niefrrkx/indian-public-school/assets/Visual%20Editor%20Picked/file_avevn4.png"
- *  => "/indian-public-school/assets/Visual%20Editor%20Picked/file_avevn4.png"
+ * Returns the configured root folder in Cloudinary.
+ * Default: ips-education
+ */
+export function getCloudinaryRootFolder(configService?: ConfigService): string {
+  const envFolder =
+    configService?.get<string>('CLOUDINARY_ROOT_FOLDER') ||
+    process.env.CLOUDINARY_ROOT_FOLDER;
+
+  if (envFolder && envFolder.trim()) {
+    return envFolder.trim().replace(/^\/+|\/+$/g, '');
+  }
+
+  return 'ips-education';
+}
+
+/**
+ * Format event names to a readable, pretty form (no underscores, hyphens, camelCase split, path deduplication, or trailing index suffixes).
+ */
+export function formatPrettyEventName(name?: unknown): string {
+  if (typeof name !== 'string' || !name.trim()) {
+    return typeof name === 'string' ? name : '';
+  }
+  let s = name.trim();
+
+  // Handle paths with slashes e.g. "AmarRathore/AmarRathore" => "AmarRathore"
+  if (s.includes('/')) {
+    const parts = s.split('/').map((p) => p.trim()).filter(Boolean);
+    s = parts[parts.length - 1] || s;
+  }
+
+  // Remove trailing index numbers like "_1", "_2", "-1", "-2" (e.g. "Art_1" => "Art")
+  s = s.replace(/([A-Za-z]+)[_-](\d{1,2})$/g, '$1');
+
+  // Insert space into camelCase (e.g. "AmarRathore" => "Amar Rathore")
+  s = s.replace(/([a-z])([A-Z])/g, '$1 $2');
+
+  // Replace underscores and hyphens with single spaces
+  s = s.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+  return s
+    .split(' ')
+    .map((word) => {
+      if (!word) return '';
+      if (/^(cbse|noc|ips|pdf|tc|gsc|id|doc)$/i.test(word)) {
+        return word.toUpperCase();
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(' ');
+}
+
+/**
+ * Strips the media host / Cloudinary / /assets prefix from a URL to store a clean relative path in DB.
+ * E.g. "https://res.cloudinary.com/niefrrkx/ips-education/assets/Gallery/pic.jpg" => "/Gallery/pic.jpg"
+ * E.g. "/assets/Gallery/pic.jpg" => "/Gallery/pic.jpg"
  */
 export function toRelativeMediaPath(
   urlOrPath: unknown,
@@ -34,51 +88,57 @@ export function toRelativeMediaPath(
     return urlOrPath;
   }
 
-  const trimmed = urlOrPath.trim();
-
-  // If already relative
-  if (trimmed.startsWith('/')) {
-    return trimmed;
-  }
+  let trimmed = urlOrPath.trim();
 
   // If HTTP/HTTPS absolute URL
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
     try {
       const baseUrl = getMediaBaseUrl(configService);
 
-      // Check configured base URL prefix
       if (trimmed.startsWith(baseUrl)) {
-        const relative = trimmed.slice(baseUrl.length);
-        return relative.startsWith('/') ? relative : `/${relative}`;
-      }
-
-      // Check standard Cloudinary domain structure: https://res.cloudinary.com/<cloud_name>/...
-      const cloudMatch = trimmed.match(/^https?:\/\/res\.cloudinary\.com\/[^/]+(\/.*)$/i);
-      if (cloudMatch && cloudMatch[1]) {
-        return cloudMatch[1];
-      }
-
-      // Generic URL fallback: if it's on Cloudinary domain or matching host
-      const parsedUrl = new URL(trimmed);
-      if (parsedUrl.hostname.includes('cloudinary.com')) {
-        const pathParts = parsedUrl.pathname.split('/').filter(Boolean);
-        if (pathParts.length > 1) {
-          return '/' + pathParts.slice(1).join('/') + parsedUrl.search + parsedUrl.hash;
+        trimmed = trimmed.slice(baseUrl.length);
+      } else {
+        const cloudMatch = trimmed.match(
+          /^https?:\/\/res\.cloudinary\.com\/[^/]+(?:\/[^/]+)?(?:\/assets)?(\/.*)$/i,
+        );
+        if (cloudMatch && cloudMatch[1]) {
+          trimmed = cloudMatch[1];
+        } else {
+          const parsedUrl = new URL(trimmed);
+          if (parsedUrl.hostname.includes('cloudinary.com')) {
+            const parts = parsedUrl.pathname.split('/').filter(Boolean);
+            const assetsIdx = parts.lastIndexOf('assets');
+            if (assetsIdx !== -1 && assetsIdx < parts.length - 1) {
+              trimmed = '/' + parts.slice(assetsIdx + 1).join('/');
+            } else if (parts.length > 2) {
+              trimmed = '/' + parts.slice(2).join('/');
+            } else {
+              trimmed = parsedUrl.pathname;
+            }
+          }
         }
-        return parsedUrl.pathname + parsedUrl.search + parsedUrl.hash;
       }
     } catch {
       return trimmed;
     }
   }
 
+  if (!trimmed.startsWith('/')) {
+    trimmed = '/' + trimmed;
+  }
+
+  // Strip redundant root folder & /assets/ prefixes for clean relative storage
+  trimmed = trimmed
+    .replace(/^\/(ips-education|indian-public-school)\/assets\//i, '/')
+    .replace(/^\/(ips-education|indian-public-school)\//i, '/')
+    .replace(/^\/assets\//i, '/');
+
   return trimmed;
 }
 
 /**
  * Attaches the media base URL prefix to a relative media path for API responses.
- * E.g., "/indian-public-school/assets/Visual%20Editor%20Picked/file_avevn4.png"
- *  => "https://res.cloudinary.com/niefrrkx/indian-public-school/assets/Visual%20Editor%20Picked/file_avevn4.png"
+ * Prevents redundant /assets/assets/ or /ips-education/assets/ duplication.
  */
 export function toFullMediaUrl(
   pathOrUrl: unknown,
@@ -88,23 +148,35 @@ export function toFullMediaUrl(
     return pathOrUrl;
   }
 
-  const trimmed = pathOrUrl.trim();
+  let trimmed = pathOrUrl.trim();
 
-  // If already absolute URL, return as-is
+  // If already absolute URL, clean any accidental double prefixes inside URL
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    return trimmed;
+    return trimmed.replace(/\/assets\/assets\//gi, '/assets/');
   }
 
-  // Prepend prefix if relative path starting with '/'
-  if (trimmed.startsWith('/')) {
-    const baseUrl = getMediaBaseUrl(configService);
-    return `${baseUrl}${trimmed}`;
+  const baseUrl = getMediaBaseUrl(configService);
+
+  // If baseUrl already ends with '/assets' (case-insensitive)
+  if (baseUrl.toLowerCase().endsWith('/assets')) {
+    trimmed = trimmed
+      .replace(/^\/(ips-education|indian-public-school)\/assets\//i, '/')
+      .replace(/^\/(ips-education|indian-public-school)\//i, '/')
+      .replace(/^\/assets\//i, '/')
+      .replace(/^assets\//i, '/');
+  } else if (baseUrl.toLowerCase().includes('/ips-education')) {
+    trimmed = trimmed.replace(/^\/(ips-education|indian-public-school)\//i, '/');
   }
 
-  return trimmed;
+  if (!trimmed.startsWith('/')) {
+    trimmed = '/' + trimmed;
+  }
+
+  return `${baseUrl}${trimmed}`;
 }
 
-const MEDIA_FILE_EXTENSIONS = /\.(png|jpg|jpeg|gif|webp|svg|pdf|mp4|webm|mov|doc|docx|xls|xlsx|csv|zip)$/i;
+const MEDIA_FILE_EXTENSIONS =
+  /\.(png|jpg|jpeg|gif|webp|svg|pdf|mp4|webm|mov|doc|docx|xls|xlsx|csv|zip)$/i;
 
 const MEDIA_PROPERTY_KEYS = new Set([
   'fileUrl',
@@ -138,16 +210,30 @@ export function transformMediaUrlsToRelative<T>(
   configService?: ConfigService,
   seen = new WeakSet<object>(),
   depth = 0,
+  parentKey?: string,
 ): T {
   if (obj === null || obj === undefined || depth > 15) return obj;
 
   if (typeof obj === 'string') {
-    return toRelativeMediaPath(obj, configService) as unknown as T;
+    const trimmed = obj.trim();
+    const isAbsoluteMediaUrl =
+      trimmed.startsWith('http://') || trimmed.startsWith('https://');
+    const isMediaProp = parentKey && MEDIA_PROPERTY_KEYS.has(parentKey);
+    const isMediaExt = MEDIA_FILE_EXTENSIONS.test(trimmed);
+    const isMediaPrefix =
+      trimmed.startsWith('/ips-education') ||
+      trimmed.startsWith('/indian-public-school') ||
+      trimmed.startsWith('/assets/');
+
+    if (isAbsoluteMediaUrl || isMediaProp || isMediaExt || isMediaPrefix) {
+      return toRelativeMediaPath(trimmed, configService) as unknown as T;
+    }
+    return obj as unknown as T;
   }
 
   if (Array.isArray(obj)) {
     return obj.map((item) =>
-      transformMediaUrlsToRelative(item, configService, seen, depth + 1),
+      transformMediaUrlsToRelative(item, configService, seen, depth + 1, parentKey),
     ) as unknown as T;
   }
 
@@ -165,12 +251,17 @@ export function transformMediaUrlsToRelative<T>(
 
     const transformed: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-      transformed[key] = transformMediaUrlsToRelative(
-        value,
-        configService,
-        seen,
-        depth + 1,
-      );
+      if (key === 'eventName' && typeof value === 'string') {
+        transformed[key] = formatPrettyEventName(value);
+      } else {
+        transformed[key] = transformMediaUrlsToRelative(
+          value,
+          configService,
+          seen,
+          depth + 1,
+          key,
+        );
+      }
     }
     return transformed as unknown as T;
   }
@@ -179,7 +270,7 @@ export function transformMediaUrlsToRelative<T>(
 }
 
 /**
- * Recursively attach prefixes to relative media paths (for Response processing).
+ * Recursively attach prefixes to relative media paths (for Response processing) and format eventName.
  */
 export function transformMediaPathsToFull<T>(
   obj: T,
@@ -191,10 +282,23 @@ export function transformMediaPathsToFull<T>(
   if (obj === null || obj === undefined || depth > 15) return obj;
 
   if (typeof obj === 'string') {
+    if (parentKey === 'eventName') {
+      return formatPrettyEventName(obj) as unknown as T;
+    }
+
     const trimmed = obj.trim();
     if (trimmed.startsWith('/')) {
+      const rootFolder = getCloudinaryRootFolder(configService);
       const isMediaPrefix =
+        trimmed.startsWith(`/${rootFolder}`) ||
+        trimmed.startsWith('/ips-education') ||
         trimmed.startsWith('/indian-public-school') ||
+        trimmed.startsWith('/assets') ||
+        trimmed.startsWith('/Gallery') ||
+        trimmed.startsWith('/Album') ||
+        trimmed.startsWith('/Documents') ||
+        trimmed.startsWith('/Settings') ||
+        trimmed.startsWith('/Videos') ||
         trimmed.startsWith('/image/upload') ||
         trimmed.startsWith('/uploads');
 
@@ -228,16 +332,21 @@ export function transformMediaPathsToFull<T>(
 
     const transformed: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-      transformed[key] = transformMediaPathsToFull(
-        value,
-        configService,
-        seen,
-        depth + 1,
-        key,
-      );
+      if (key === 'eventName' && typeof value === 'string') {
+        transformed[key] = formatPrettyEventName(value);
+      } else {
+        transformed[key] = transformMediaPathsToFull(
+          value,
+          configService,
+          seen,
+          depth + 1,
+          key,
+        );
+      }
     }
     return transformed as unknown as T;
   }
 
   return obj;
 }
+

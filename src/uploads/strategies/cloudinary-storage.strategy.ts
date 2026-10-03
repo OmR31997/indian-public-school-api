@@ -6,7 +6,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { IStorageStrategy, UploadResult } from './storage-strategy.interface';
 import { formatFileSizeErrorMessage } from '../utils/cloudinary-helper';
-import { toRelativeMediaPath } from '../../common/config';
+import { toRelativeMediaPath, getCloudinaryRootFolder } from '../../common/config';
 
 @Injectable()
 export class CloudinaryStorageStrategy implements IStorageStrategy {
@@ -47,7 +47,9 @@ export class CloudinaryStorageStrategy implements IStorageStrategy {
     );
   }
 
-  async uploadFile(file: Express.Multer.File, folder: string = 'indian-public-school'): Promise<UploadResult> {
+  async uploadFile(file: Express.Multer.File, folder?: string): Promise<UploadResult> {
+    const rootFolder = getCloudinaryRootFolder(this.configService);
+    const resolvedFolder = folder || `${rootFolder}/assets`;
     if (!file || !file.buffer || file.buffer.length === 0) {
       throw new BadRequestException('Empty file or missing file buffer provided');
     }
@@ -62,7 +64,7 @@ export class CloudinaryStorageStrategy implements IStorageStrategy {
       return new Promise((resolve, reject) => {
         const cleanName = file.originalname.replace(/\.pdf$/i, '').replace(/[^a-zA-Z0-9._-]/g, '_');
         const options: Record<string, any> = {
-          folder,
+          folder: resolvedFolder,
           resource_type: resourceType,
         };
 
@@ -212,7 +214,9 @@ export class CloudinaryStorageStrategy implements IStorageStrategy {
   }
 
   async listResources(folder?: string): Promise<Array<{ id: string; url: string; title: string; category: string; resourceType: string; format: string }>> {
-    const cacheKey = folder || '__ALL__';
+    const rootFolder = getCloudinaryRootFolder(this.configService);
+    const targetFolder = folder || rootFolder;
+    const cacheKey = targetFolder || '__ALL__';
     const cached = this.cache.get(cacheKey);
     const now = Date.now();
 
@@ -232,10 +236,8 @@ export class CloudinaryStorageStrategy implements IStorageStrategy {
           const options: Record<string, any> = {
             max_results: 100,
             type: 'upload',
+            prefix: targetFolder,
           };
-          if (folder) {
-            options.prefix = folder;
-          }
           return await cloudinary.api.resources(options);
         } catch (err: any) {
           const isRateLimit = this.isRateLimitError(err);

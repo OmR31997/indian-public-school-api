@@ -4,6 +4,7 @@ import { CreateGalleryDto } from './dto/create-gallery.dto';
 import { UpdateGalleryDto } from './dto/update-gallery.dto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { UploadsService } from '../uploads/uploads.service';
+import { formatPrettyEventName } from '../common/config';
 
 @Injectable()
 export class GalleryService {
@@ -16,6 +17,9 @@ export class GalleryService {
   ) {}
 
   async create(createGalleryDto: CreateGalleryDto) {
+    if (createGalleryDto.eventName) {
+      createGalleryDto.eventName = formatPrettyEventName(createGalleryDto.eventName);
+    }
     if (createGalleryDto.fileUrl && createGalleryDto.fileUrl.length > 0) {
       const existing = await this.galleryRepository.findAll(
         { page: 1, limit: 10 },
@@ -76,19 +80,19 @@ export class GalleryService {
     // 2. Map DB file URLs and assign fallbacks for records without images
     const dbUrls = new Set<string>();
     const DEFAULT_FALLBACK_IMAGES = [
-      "/image/upload/v1789163175/indian-public-school/assets/Home/hero-campus.jpg",
+      "/ips-education/assets/Settings/Home/hero-campus.jpg",
       "https://images.unsplash.com/photo-1562774053-701939374585?w=1200&auto=format&fit=crop&q=80",
       "https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=1200&auto=format&fit=crop&q=80",
       "https://images.unsplash.com/photo-1577896851231-70ef18881754?w=1200&auto=format&fit=crop&q=80",
       "https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1200&auto=format&fit=crop&q=80",
-      "/image/upload/v1789163157/indian-public-school/assets/Home/Banner_1.jpg",
-      "/image/upload/v1789163160/indian-public-school/assets/Home/Banner_2.jpg",
-      "/image/upload/v1789163161/indian-public-school/assets/Home/Banner_3.jpg",
-      "/image/upload/v1789163162/indian-public-school/assets/Home/Banner_4.jpg",
-      "/image/upload/v1789163163/indian-public-school/assets/Home/Banner_5.jpg",
-      "/image/upload/v1789163164/indian-public-school/assets/Home/Banner_6.jpg",
-      "/image/upload/v1789163165/indian-public-school/assets/Home/Banner_7.jpg",
-      "/image/upload/v1789163166/indian-public-school/assets/Home/Banner_8.jpg",
+      "/ips-education/assets/Settings/Home/Banner_1.jpg",
+      "/ips-education/assets/Settings/Home/Banner_2.jpg",
+      "/ips-education/assets/Settings/Home/Banner_3.jpg",
+      "/ips-education/assets/Settings/Home/Banner_4.jpg",
+      "/ips-education/assets/Settings/Home/Banner_5.jpg",
+      "/ips-education/assets/Settings/Home/Banner_6.jpg",
+      "/ips-education/assets/Settings/Home/Banner_7.jpg",
+      "/ips-education/assets/Settings/Home/Banner_8.jpg",
     ];
 
     dbItems.forEach((item: any, idx: number) => {
@@ -157,19 +161,19 @@ export class GalleryService {
 
     // 4b. Ensure complete media suite with default sample assets
     const DEFAULT_MEDIA_ITEMS = [
-      { eventName: "Main Campus Aerial View", eventType: "Campus", directory: "/album/campus", fileUrl: ["/image/upload/v1789163175/indian-public-school/assets/Home/hero-campus.jpg"] },
+      { eventName: "Main Campus Aerial View", eventType: "Campus", directory: "/album/campus", fileUrl: ["/ips-education/assets/Settings/Home/hero-campus.jpg"] },
       { eventName: "School Academic Infrastructure", eventType: "Campus", directory: "/album/campus", fileUrl: ["https://images.unsplash.com/photo-1562774053-701939374585?w=1200&auto=format&fit=crop&q=80"] },
       { eventName: "Smart Science & Innovation Lab", eventType: "Activities", directory: "/album/activities", fileUrl: ["https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=1200&auto=format&fit=crop&q=80"] },
       { eventName: "Digital Smart Interactive Classroom", eventType: "Campus", directory: "/album/campus", fileUrl: ["https://images.unsplash.com/photo-1577896851231-70ef18881754?w=1200&auto=format&fit=crop&q=80"] },
       { eventName: "Central Library & Knowledge Hub", eventType: "Campus", directory: "/album/campus", fileUrl: ["https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1200&auto=format&fit=crop&q=80"] },
-      { eventName: "School Entrance & Reception", eventType: "Banners", directory: "/album/banners", fileUrl: ["/image/upload/v1789163157/indian-public-school/assets/Home/Banner_1.jpg"] },
-      { eventName: "Annual Athletic Sports Field", eventType: "Sports", directory: "/album/sports", fileUrl: ["/image/upload/v1789163160/indian-public-school/assets/Home/Banner_2.jpg"] },
-      { eventName: "Cultural Festival Stage", eventType: "Events", directory: "/album/events", fileUrl: ["/image/upload/v1789163161/indian-public-school/assets/Home/Banner_3.jpg"] },
-      { eventName: "Co-Curricular Student Center", eventType: "Activities", directory: "/album/activities", fileUrl: ["/image/upload/v1789163162/indian-public-school/assets/Home/Banner_4.jpg"] },
-      { eventName: "Computer Science Center", eventType: "Campus", directory: "/album/campus", fileUrl: ["/image/upload/v1789163163/indian-public-school/assets/Home/Banner_5.jpg"] },
-      { eventName: "Art & Craft Studio", eventType: "Arts", directory: "/album/arts", fileUrl: ["/image/upload/v1789163164/indian-public-school/assets/Home/Banner_6.jpg"] },
-      { eventName: "Hostel Premises", eventType: "Hostel", directory: "/album/hostel", fileUrl: ["/image/upload/v1789163165/indian-public-school/assets/Home/Banner_7.jpg"] },
-      { eventName: "Open Green Playgrounds", eventType: "Sports", directory: "/album/sports", fileUrl: ["/image/upload/v1789163166/indian-public-school/assets/Home/Banner_8.jpg"] },
+      { eventName: "School Entrance & Reception", eventType: "Banners", directory: "/album/banners", fileUrl: ["/ips-education/assets/Settings/Home/Banner_1.jpg"] },
+      { eventName: "Annual Athletic Sports Field", eventType: "Sports", directory: "/album/sports", fileUrl: ["/ips-education/assets/Settings/Home/Banner_2.jpg"] },
+      { eventName: "Cultural Festival Stage", eventType: "Events", directory: "/album/events", fileUrl: ["/ips-education/assets/Settings/Home/Banner_3.jpg"] },
+      { eventName: "Co-Curricular Student Center", eventType: "Activities", directory: "/album/activities", fileUrl: ["/ips-education/assets/Settings/Home/Banner_4.jpg"] },
+      { eventName: "Computer Science Center", eventType: "Campus", directory: "/album/campus", fileUrl: ["/ips-education/assets/Settings/Home/Banner_7.jpg"] },
+      { eventName: "Art & Craft Studio", eventType: "Arts", directory: "/album/arts", fileUrl: ["/ips-education/assets/Settings/Home/Banner_6.jpg"] },
+      { eventName: "Hostel Premises", eventType: "Hostel", directory: "/album/hostel", fileUrl: ["/ips-education/assets/Settings/Home/Banner_7.jpg"] },
+      { eventName: "Open Green Playgrounds", eventType: "Sports", directory: "/album/sports", fileUrl: ["/ips-education/assets/Settings/Home/Banner_8.jpg"] },
     ];
 
     DEFAULT_MEDIA_ITEMS.forEach((item, idx) => {
@@ -277,6 +281,9 @@ export class GalleryService {
   }
 
   async update(id: string, updateGalleryDto: UpdateGalleryDto) {
+    if (updateGalleryDto.eventName) {
+      updateGalleryDto.eventName = formatPrettyEventName(updateGalleryDto.eventName);
+    }
     if (id.startsWith('cdn-')) {
       // Upsert into MongoDB so updates/metadata changes persist
       return this.galleryRepository.create({
